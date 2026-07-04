@@ -1,0 +1,18 @@
+# NSE UT Bot Scanner — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Data download
+yfinance>=0.2.38
+
+# Data manipulation
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0    # PostgreSQL driver
+
+# HTTP (for fetch_symbols)
+requests>=2.31.0
+
+
