@@ -276,9 +276,9 @@ def scan_symbol(
 
     for idx, row in sub_df.iterrows():
         signal: str = row["Signal"]
-        # If we are doing a single day scan, record it anyway (even if Signal is NONE) to keep scan_results complete.
-        # If we are doing a multi-day/historical report, we only care about actual BUY/SELL signals.
-        if days == 1 or signal in (SIGNAL_BUY, SIGNAL_SELL):
+        # Only store actionable signals — BUY and SELL.
+        # NONE signals are not persisted to keep the table clean.
+        if signal in (SIGNAL_BUY, SIGNAL_SELL):
             results.append({
                 "symbol":        symbol,
                 "scan_date":     idx.date(),

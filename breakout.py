@@ -9,25 +9,25 @@ signals themselves are generated.
 
 Logic (runs after the daily scan):
 
-  For each symbol with the most recent UT Bot signal = BUY (from scan_results):
+  For each symbol in buy_watch_list (latest BUY signal per symbol):
 
-    1. Get the HA OHLC of the BUY signal candle from scan_results
-       (scan_results now stores HA values, not raw OHLC).
+    1. Get the HA OHLC of the BUY signal candle from buy_watch_list
+       (HA values are stored there by the scanner at signal time).
 
-    2. Compute the HA candle's price change:
-           change_pct = (HA_close - HA_open) / HA_open * 100
+    2. Compute the candle's high-to-low range:
+           change_pct = (HA_high - HA_low) / HA_low * 100
 
     3. SKIP the symbol if change_pct > MAX_BUY_CANDLE_CHANGE_PCT (default 10%).
-       A candle that has already moved 10%+ is an exhaustion move — chasing it
-       is high risk.
+       A candle that swung more than 10% high-to-low is an exhaustion move —
+       chasing it is high risk.
 
     4. Compute today's HA_Close by loading the full raw candle history for
        the symbol and recomputing Heikin Ashi (needed because HA is iterative).
 
     5. If today_ha_close > buy_ha_high:
-           → Upsert the symbol into buy_watch_list as a confirmed breakout.
+           → Upsert the symbol into confirmed_breakouts.
        Else:
-           → Remove the symbol from buy_watch_list if it was previously there
+           → Remove the symbol from confirmed_breakouts if it was previously there
              (breakout has since reversed / not yet triggered).
 
 Usage:
@@ -230,16 +230,16 @@ def run_breakout(
                 continue
 
             # ----------------------------------------------------------------
-            # 1. BUY candle HA OHLC — read from scan_results (HA values stored
-            #    since scanner fix; fallback to buy_high if OHLC cols are NULL)
+            # 1. BUY candle HA OHLC — read from buy_watch_list
+            #    (HA values stored by the scanner at signal time)
             # ----------------------------------------------------------------
-            ha_open  = sig.get("ha_open")  or sig.get("buy_high")
-            ha_high  = sig.get("ha_high")  or sig.get("buy_high")
-            ha_low   = sig.get("ha_low")   or sig.get("ha_high")
-            ha_close = sig.get("ha_close") or sig.get("buy_high")
+            ha_open  = sig.get("ha_open")
+            ha_high  = sig.get("ha_high")
+            ha_low   = sig.get("ha_low")
+            ha_close = sig.get("ha_close")
 
             if ha_high is None:
-                log.debug("%-15s  no HA data in scan_results, skipping", sym)
+                log.debug("%-15s  no HA data in buy_watch_list, skipping", sym)
                 skipped_no_data += 1
                 continue
 
