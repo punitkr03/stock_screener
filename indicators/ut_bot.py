@@ -42,8 +42,8 @@ SIGNAL_NONE = "NONE"
 
 def compute_ut_bot(
     df: pd.DataFrame,
-    atr_period: int = 1,
-    key_value: float = 3.0,
+    atr_period: int = 55,
+    key_value: float = 1.0,
     use_heikin_ashi: bool = True,
 ) -> pd.DataFrame:
     """
@@ -90,32 +90,40 @@ def compute_ut_bot(
         low  = df["Low"].values
 
     n = len(src)
+    if n < atr_period + 1:
+        raise ValueError(
+            f"Insufficient data: got {n} rows, but need at least {atr_period + 1} "
+            f"rows for ATR period {atr_period}"
+        )
 
     # ------------------------------------------------------------------
     # True Range → ATR  (Wilder's smoothing = EWM with alpha=1/period)
     # ------------------------------------------------------------------
 
     close = df["Close"].values  # always use raw close for TR calculation
+    raw_high = df["High"].values  # always use raw high for TR (not HA)
+    raw_low  = df["Low"].values   # always use raw low for TR (not HA)
 
     prev_close = np.empty(n)
     prev_close[0] = close[0]
     prev_close[1:] = close[:-1]
 
     tr = np.maximum(
-        high - low,
+        raw_high - raw_low,
         np.maximum(
-            np.abs(high - prev_close),
-            np.abs(low  - prev_close),
+            np.abs(raw_high - prev_close),
+            np.abs(raw_low  - prev_close),
         ),
     )
 
-    # Wilder ATR (EWM with adjust=False, alpha = 1/period)
-    atr_series = (
-        pd.Series(tr)
-        .ewm(alpha=1.0 / atr_period, adjust=False)
-        .mean()
-        .values
-    )
+    # Wilder's RMA ATR — matches TradingView's ta.atr() exactly.
+    # Initialization: SMA of first atr_period values, then Wilder's smoothing.
+    alpha = 1.0 / atr_period
+    atr_series = np.zeros(n)
+    # Seed with SMA of first `atr_period` bars
+    atr_series[atr_period - 1] = np.mean(tr[:atr_period])
+    for i in range(atr_period, n):
+        atr_series[i] = atr_series[i - 1] * (1 - alpha) + tr[i] * alpha
 
     n_loss = key_value * atr_series
 

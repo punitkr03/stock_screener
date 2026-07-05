@@ -1,3 +1,0 @@
-# Daily signal CSV files are written here by scanner.py.
-# Filename format: signals_YYYY-MM-DD.csv
-# This file keeps the directory tracked by git.

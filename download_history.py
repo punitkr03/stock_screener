@@ -50,27 +50,15 @@ def store_stock_master(df):
 
 
 def flatten_download(df):
-
-    #
-    # MultiIndex
-    #
-    # (Open, RELIANCE.NS)
-    #
-
     if df.empty:
         return pd.DataFrame()
 
     if not isinstance(df.columns, pd.MultiIndex):
-        # If it's a single index, this means yfinance returned a flat DataFrame for a single ticker.
-        # This can happen if only one ticker is passed or returned.
-        # We don't have the ticker name in the columns, so we can't easily map it unless we know it.
-        # But since we download in batches of 50, it will be a MultiIndex.
         return pd.DataFrame()
 
     rows = []
 
-    # Get only the tickers that actually have columns in the DataFrame
-    tickers = df.columns.get_level_values(1).unique()
+    tickers = df.columns.get_level_values(0).unique()
 
     for ticker in tickers:
 
@@ -79,13 +67,18 @@ def flatten_download(df):
             stock = df.xs(
                 ticker,
                 axis=1,
-                level=1,
+                level=0,
             ).copy()
 
         except Exception:
             continue
 
         stock = stock.dropna()
+
+        # Drop zero-volume candles — these are weekend/holiday fills from yfinance
+        # (e.g., Open=High=Low=Close=prev_close, Volume=0) which corrupt HA calculations
+        if "Volume" in stock.columns:
+            stock = stock[stock["Volume"] > 0]
 
         if stock.empty:
             continue
@@ -163,7 +156,13 @@ def store_history(df):
 
                 ON CONFLICT(symbol, candle_date)
 
-                DO NOTHING
+                DO UPDATE SET
+                    open   = EXCLUDED.open,
+                    high   = EXCLUDED.high,
+                    low    = EXCLUDED.low,
+                    close  = EXCLUDED.close,
+                    volume = EXCLUDED.volume
+                WHERE daily_candles.volume = 0 OR EXCLUDED.volume > 0
                 """,
                 row.to_dict(),
             )
@@ -184,7 +183,26 @@ def main():
         type=str,
         help="Download history for a single specified symbol (e.g., RELIANCE)",
     )
+    parser.add_argument(
+        "--recent",
+        action="store_true",
+        help="Daily incremental mode: download only the last 5 days instead of the full history period",
+    )
+    parser.add_argument(
+        "--period",
+        type=str,
+        default=None,
+        help="Override download period (e.g. 5d, 1mo, 6mo, 2y). Defaults to DOWNLOAD_PERIOD in config.py",
+    )
     args = parser.parse_args()
+
+    # Resolve which period to use
+    if args.period:
+        period = args.period
+    elif args.recent:
+        period = "5d"  # just enough to catch today + weekend buffer
+    else:
+        period = DOWNLOAD_PERIOD  # full history (used for initial seed)
 
     symbols_df = read_symbols()
 
@@ -213,7 +231,7 @@ def main():
         )
     )
 
-    print(f"Downloading {len(symbols)} stocks...")
+    print(f"Downloading {len(symbols)} stocks... (period={period})")
     print(f"{len(batches)} batches")
 
     for i, batch in enumerate(batches):
@@ -224,7 +242,7 @@ def main():
 
         data = yf.download(
             tickers=batch,
-            period=DOWNLOAD_PERIOD,
+            period=period,
             interval="1d",
             auto_adjust=AUTO_ADJUST,
             progress=False,
@@ -237,7 +255,7 @@ def main():
         store_history(flat)
 
         if i < len(batches) - 1:
-            time.sleep(2)
+            time.sleep(1)
     print("Done")
 
 if __name__ == "__main__":

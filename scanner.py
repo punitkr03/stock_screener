@@ -22,7 +22,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import csv
 import logging
 import os
 import sys
@@ -62,8 +61,7 @@ log = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-SIGNALS_DIR = os.path.join(os.path.dirname(__file__), "signals")
-MIN_CANDLES = 30  # minimum rows needed to compute meaningful ATR
+MIN_CANDLES = max(30, UT_BOT_ATR_PERIOD + 1)  # minimum rows needed to compute meaningful ATR
 
 # ---------------------------------------------------------------------------
 # Database helpers
@@ -157,6 +155,45 @@ def upsert_latest_buy(conn, symbol: str, signal_date: date, row: pd.Series) -> N
     )
 
 
+def delete_latest_buy(conn, symbol: str) -> None:
+    """Remove the active BUY signal and both watch list entries on SELL signal."""
+    conn.execute(
+        text("DELETE FROM latest_buy_signal WHERE symbol = :sym"),
+        {"sym": symbol},
+    )
+    conn.execute(
+        text("DELETE FROM buy_watch_list WHERE symbol = :sym"),
+        {"sym": symbol},
+    )
+    conn.execute(
+        text("DELETE FROM confirmed_breakouts WHERE symbol = :sym"),
+        {"sym": symbol},
+    )
+
+
+def upsert_buy_watch_list(conn, r: dict) -> None:
+    """Insert a BUY signal into buy_watch_list. Idempotent via UNIQUE(symbol, signal_date)."""
+    conn.execute(
+        text("""
+            INSERT INTO buy_watch_list
+                (symbol, signal_date, ha_open, ha_high, ha_low, ha_close, trailing_stop)
+            VALUES
+                (:sym, :sd, :ho, :hh, :hl, :hc, :ts)
+            ON CONFLICT (symbol, signal_date) DO NOTHING
+        """),
+        {
+            "sym": r["symbol"],
+            "sd":  r["signal_date"],
+            "ho":  r["open"],
+            "hh":  r["high"],
+            "hl":  r["low"],
+            "hc":  r["close"],
+            "ts":  r["trailing_stop"],
+        },
+    )
+
+
+
 def upsert_scan_result(
     conn,
     scan_date: date,
@@ -206,11 +243,12 @@ def scan_symbol(
     symbol: str,
     scan_date: date,
     use_db: bool = True,
-) -> dict | None:
+    days: int = 1,
+) -> list[dict] | None:
     """
     Run the full pipeline for one symbol.
 
-    Returns a dict with signal info, or None if skipped.
+    Returns a list of dicts with signal info, or None if skipped.
     """
 
     # 1. Load OHLC
@@ -231,54 +269,31 @@ def scan_symbol(
         use_heikin_ashi=True,
     )
 
-    # 4. Extract last row
-    last = df.iloc[-1]
-    signal: str = last["Signal"]
-    last_date: date = df.index[-1].date()
+    # 4. Extract last N rows
+    results = []
+    actual_days = min(days, len(df))
+    sub_df = df.tail(actual_days)
 
-    return {
-        "symbol":       symbol,
-        "scan_date":    scan_date,
-        "signal_date":  last_date,
-        "signal":       signal,
-        "open":         float(last["Open"]),
-        "high":         float(last["High"]),
-        "low":          float(last["Low"]),
-        "close":        float(last["Close"]),
-        "trailing_stop": float(last["TrailingStop"]),
-    }
+    for idx, row in sub_df.iterrows():
+        signal: str = row["Signal"]
+        # If we are doing a single day scan, record it anyway (even if Signal is NONE) to keep scan_results complete.
+        # If we are doing a multi-day/historical report, we only care about actual BUY/SELL signals.
+        if days == 1 or signal in (SIGNAL_BUY, SIGNAL_SELL):
+            results.append({
+                "symbol":        symbol,
+                "scan_date":     idx.date(),
+                "signal_date":   idx.date(),
+                "signal":        signal,
+                # Use HA OHLC — these are the values the UT Bot signals are computed from.
+                # Raw candles are still stored in daily_candles for reference.
+                "open":          float(row.get("HA_Open",  row["Open"])),
+                "high":          float(row.get("HA_High",  row["High"])),
+                "low":           float(row.get("HA_Low",   row["Low"])),
+                "close":         float(row.get("HA_Close", row["Close"])),
+                "trailing_stop": float(row["TrailingStop"]),
+            })
 
-
-# ---------------------------------------------------------------------------
-# CSV output
-# ---------------------------------------------------------------------------
-
-
-def write_signals_csv(results: list[dict], scan_date: date) -> str:
-    """Write BUY/SELL signals to a dated CSV file. Returns the file path."""
-
-    os.makedirs(SIGNALS_DIR, exist_ok=True)
-    path = os.path.join(SIGNALS_DIR, f"signals_{scan_date}.csv")
-
-    fieldnames = [
-        "symbol",
-        "signal",
-        "signal_date",
-        "open",
-        "high",
-        "low",
-        "close",
-        "trailing_stop",
-    ]
-
-    actionable = [r for r in results if r["signal"] in (SIGNAL_BUY, SIGNAL_SELL)]
-
-    with open(path, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(actionable)
-
-    return path
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -289,55 +304,64 @@ def write_signals_csv(results: list[dict], scan_date: date) -> str:
 def run_scan(
     scan_date: date,
     use_db: bool = True,
-    csv_only: bool = False,
+    symbol: Optional[str] = None,
+    days: int = 1,
 ) -> list[dict]:
     """
-    Run the full daily scan.
+    Run the daily scan.
 
     Parameters
     ----------
     scan_date : date  — The date to stamp results with (usually today).
     use_db    : bool  — Persist results to PostgreSQL.
-    csv_only  : bool  — Skip DB writes; only write CSV.
+    symbol    : str   — Optional specific symbol to scan.
+    days      : int   — Number of past days to scan for signals.
     """
 
     engine = get_engine()
 
-    # Load symbols
-    symbols = load_symbols_from_db(engine) if use_db else []
-    if not symbols:
-        csv_path = os.path.join(os.path.dirname(__file__), "symbols.csv")
-        symbols = load_symbols_from_csv(csv_path)
+    if symbol:
+        symbols = [symbol.strip().upper().replace(".NS", "")]
+    else:
+        # Load symbols
+        symbols = load_symbols_from_db(engine) if use_db else []
+        if not symbols:
+            csv_path = os.path.join(os.path.dirname(__file__), "symbols.csv")
+            symbols = load_symbols_from_csv(csv_path)
 
-    log.info("Scanning %d symbols for %s …", len(symbols), scan_date)
+    log.info("Scanning %d symbols for %s (lookback: %d days) …", len(symbols), scan_date, days)
 
     results: list[dict] = []
     buy_count  = 0
     sell_count = 0
     skip_count = 0
+    scanned_count = 0
 
     for i, symbol in enumerate(symbols, start=1):
 
         try:
-            result = scan_symbol(engine, symbol, scan_date, use_db=use_db)
+            symbol_results = scan_symbol(engine, symbol, scan_date, use_db=use_db, days=days)
         except Exception as exc:  # noqa: BLE001
             log.warning("%-15s  ERROR: %s", symbol, exc)
             skip_count += 1
             continue
 
-        if result is None:
+        if symbol_results is None:
             skip_count += 1
             continue
 
-        results.append(result)
+        scanned_count += 1
 
-        sig = result["signal"]
-        if sig == SIGNAL_BUY:
-            buy_count += 1
-            log.info("  %-15s  ✅ BUY   close=%.2f  stop=%.2f", symbol, result["close"], result["trailing_stop"])
-        elif sig == SIGNAL_SELL:
-            sell_count += 1
-            log.info("  %-15s  🔴 SELL  close=%.2f  stop=%.2f", symbol, result["close"], result["trailing_stop"])
+        for r in symbol_results:
+            results.append(r)
+            sig = r["signal"]
+            date_suffix = f" on {r['signal_date']}" if days > 1 else ""
+            if sig == SIGNAL_BUY:
+                buy_count += 1
+                log.info("  %-15s  ✅ BUY%s   close=%.2f  stop=%.2f", symbol, date_suffix, r["close"], r["trailing_stop"])
+            elif sig == SIGNAL_SELL:
+                sell_count += 1
+                log.info("  %-15s  🔴 SELL%s  close=%.2f  stop=%.2f", symbol, date_suffix, r["close"], r["trailing_stop"])
 
         if i % 50 == 0:
             log.info("Progress: %d / %d", i, len(symbols))
@@ -346,7 +370,7 @@ def run_scan(
     # Persist to DB
     # ------------------------------------------------------------------
 
-    if use_db and not csv_only and results:
+    if use_db and results:
         log.info("Writing results to database …")
         with engine.begin() as conn:
             for r in results:
@@ -364,6 +388,10 @@ def run_scan(
                             "Close": r["close"],
                         }),
                     )
+                    # Also add to the general buy_watch_list (idempotent)
+                    upsert_buy_watch_list(conn, r)
+                elif sig == SIGNAL_SELL:
+                    delete_latest_buy(conn, r["symbol"])
 
                 upsert_scan_result(
                     conn,
@@ -375,12 +403,6 @@ def run_scan(
                     today_close=r["close"],
                 )
 
-    # ------------------------------------------------------------------
-    # Write CSV
-    # ------------------------------------------------------------------
-
-    csv_path = write_signals_csv(results, scan_date)
-
     actionable = buy_count + sell_count
     log.info(
         "\n─── Scan complete ───────────────────────────────\n"
@@ -389,15 +411,13 @@ def run_scan(
         "  BUY     : %d\n"
         "  SELL    : %d\n"
         "  Signals : %d\n"
-        "  CSV     : %s\n"
         "─────────────────────────────────────────────────",
         scan_date,
-        len(results),
+        scanned_count,
         skip_count,
         buy_count,
         sell_count,
         actionable,
-        csv_path,
     )
 
     return results
@@ -417,14 +437,15 @@ def parse_args() -> argparse.Namespace:
         help="Scan date (default: today)",
     )
     p.add_argument(
-        "--csv-only",
-        action="store_true",
-        help="Write CSV only; skip DB writes",
+        "--symbol",
+        type=str,
+        help="Scan only a single symbol (e.g., RELIANCE)",
     )
     p.add_argument(
-        "--no-db",
-        action="store_true",
-        help="Do not read OHLC from DB (uses yfinance fallback — not yet implemented)",
+        "--days",
+        type=int,
+        default=1,
+        help="Number of past days/candles to scan for signals (default: 1)",
     )
     return p.parse_args()
 
@@ -433,6 +454,7 @@ if __name__ == "__main__":
     args = parse_args()
     run_scan(
         scan_date=args.date,
-        use_db=not args.no_db,
-        csv_only=args.csv_only,
+        symbol=args.symbol,
+        days=args.days,
     )
+
