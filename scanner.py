@@ -93,9 +93,13 @@ def load_symbols_from_csv(path: str = "symbols.csv") -> list[str]:
     return df["SYMBOL"].str.strip().tolist()
 
 
-def load_ohlc_from_db(engine, symbol: str, limit: int = 200) -> pd.DataFrame:
+def load_ohlc_from_db(engine, symbol: str) -> pd.DataFrame:
     """
-    Fetch the most recent `limit` daily candles for a symbol.
+    Fetch the complete daily candle history for a symbol.
+
+    We always load the full history (no LIMIT) because Wilder's ATR and the
+    iterative HA/trailing-stop calculations are path-dependent — truncating
+    history shifts the ATR seed and can flip signals compared to TradingView.
 
     Returns a DataFrame with columns: Date (index), Open, High, Low, Close, Volume.
     """
@@ -107,11 +111,10 @@ def load_ohlc_from_db(engine, symbol: str, limit: int = 200) -> pd.DataFrame:
                 SELECT candle_date, open, high, low, close, volume
                 FROM   daily_candles
                 WHERE  symbol = :sym
-                ORDER  BY candle_date DESC
-                LIMIT  :lim
+                ORDER  BY candle_date ASC
                 """
             ),
-            {"sym": symbol, "lim": limit},
+            {"sym": symbol},
         ).fetchall()
 
     if not rows:
@@ -119,7 +122,7 @@ def load_ohlc_from_db(engine, symbol: str, limit: int = 200) -> pd.DataFrame:
 
     df = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"])
     df["Date"] = pd.to_datetime(df["Date"])
-    df = df.sort_values("Date").set_index("Date")
+    df = df.set_index("Date")
     return df
 
 
@@ -249,9 +252,12 @@ def scan_symbol(
     Run the full pipeline for one symbol.
 
     Returns a list of dicts with signal info, or None if skipped.
+    Each dict also carries an ``active_buy`` key (the last unresolved BUY
+    signal from full history) so the caller can populate buy_watch_list
+    with the correct historical signal_date.
     """
 
-    # 1. Load OHLC
+    # 1. Load full OHLC history (no limit — ATR is path-dependent)
     df = load_ohlc_from_db(engine, symbol) if use_db else pd.DataFrame()
 
     if df.empty or len(df) < MIN_CANDLES:
@@ -261,7 +267,7 @@ def scan_symbol(
     # 2. Heikin Ashi
     df = append_heikin_ashi(df)
 
-    # 3. UT Bot
+    # 3. UT Bot (on full history — needed for correct ATR seed)
     df = compute_ut_bot(
         df,
         atr_period=UT_BOT_ATR_PERIOD,
@@ -269,7 +275,19 @@ def scan_symbol(
         use_heikin_ashi=True,
     )
 
-    # 4. Extract last N rows
+    # 4. Find the last active BUY from full history.
+    #    Walk backwards: if the most recent signal is BUY → it's active.
+    #    If it's SELL → no active BUY. If NONE → keep scanning back.
+    active_buy_row = None
+    for idx_h in reversed(df.index):
+        sig_h = df.at[idx_h, "Signal"]
+        if sig_h == SIGNAL_BUY:
+            active_buy_row = (idx_h, df.loc[idx_h])
+            break
+        elif sig_h == SIGNAL_SELL:
+            break  # cancelled by a sell
+
+    # 5. Extract last N rows for reporting BUY/SELL signals on those days
     results = []
     actual_days = min(days, len(df))
     sub_df = df.tail(actual_days)
@@ -291,6 +309,57 @@ def scan_symbol(
                 "low":           float(row.get("HA_Low",   row["Low"])),
                 "close":         float(row.get("HA_Close", row["Close"])),
                 "trailing_stop": float(row["TrailingStop"]),
+                "active_buy":    None,
+            })
+
+    # Attach the active_buy to every result row so the DB block can use it.
+    # If no result row exists (today is NONE), we still need to convey it —
+    # add a synthetic NONE row so the active_buy upsert path is reached.
+    if active_buy_row is not None:
+        ab_idx, ab_row = active_buy_row
+        active_buy_dict = {
+            "symbol":        symbol,
+            "signal_date":   ab_idx.date(),
+            "open":          float(ab_row.get("HA_Open",  ab_row["Open"])),
+            "high":          float(ab_row.get("HA_High",  ab_row["High"])),
+            "low":           float(ab_row.get("HA_Low",   ab_row["Low"])),
+            "close":         float(ab_row.get("HA_Close", ab_row["Close"])),
+            "trailing_stop": float(ab_row["TrailingStop"]),
+        }
+        for r in results:
+            r["active_buy"] = active_buy_dict
+
+        # If no BUY/SELL fired today, still surface the active_buy so the
+        # DB write block can upsert buy_watch_list with the correct date.
+        if not results:
+            results.append({
+                "symbol":     symbol,
+                "scan_date":  df.index[-1].date(),
+                "signal_date": df.index[-1].date(),
+                "signal":     SIGNAL_NONE,
+                "open":       float(df["HA_Open"].iloc[-1]),
+                "high":       float(df["HA_High"].iloc[-1]),
+                "low":        float(df["HA_Low"].iloc[-1]),
+                "close":      float(df["HA_Close"].iloc[-1]),
+                "trailing_stop": float(df["TrailingStop"].iloc[-1]),
+                "active_buy": active_buy_dict,
+            })
+    else:
+        # No active BUY → mark for deletion from buy_watch_list
+        for r in results:
+            r["active_buy"] = None
+        if not results:
+            results.append({
+                "symbol":     symbol,
+                "scan_date":  df.index[-1].date(),
+                "signal_date": df.index[-1].date(),
+                "signal":     SIGNAL_NONE,
+                "open":       float(df["HA_Open"].iloc[-1]),
+                "high":       float(df["HA_High"].iloc[-1]),
+                "low":        float(df["HA_Low"].iloc[-1]),
+                "close":      float(df["HA_Close"].iloc[-1]),
+                "trailing_stop": float(df["TrailingStop"].iloc[-1]),
+                "active_buy": None,
             })
 
     return results
@@ -375,6 +444,7 @@ def run_scan(
         with engine.begin() as conn:
             for r in results:
                 sig = r["signal"]
+                active_buy = r.get("active_buy")
 
                 if sig == SIGNAL_BUY:
                     upsert_latest_buy(
@@ -388,20 +458,38 @@ def run_scan(
                             "Close": r["close"],
                         }),
                     )
-                    # Also add to the general buy_watch_list (idempotent)
-                    upsert_buy_watch_list(conn, r)
+
                 elif sig == SIGNAL_SELL:
                     delete_latest_buy(conn, r["symbol"])
 
-                upsert_scan_result(
-                    conn,
-                    scan_date=r["scan_date"],
-                    symbol=r["symbol"],
-                    signal=sig,
-                    buy_date=r["signal_date"] if sig == SIGNAL_BUY else None,
-                    buy_high=r["high"]  if sig == SIGNAL_BUY else None,
-                    today_close=r["close"],
-                )
+                # Sync buy_watch_list using the historically correct active BUY.
+                # active_buy is the last BUY from full history that hasn't been
+                # cancelled by a subsequent SELL — regardless of whether today
+                # fired a new BUY signal.
+                if active_buy is not None:
+                    upsert_buy_watch_list(conn, active_buy)
+                elif sig == SIGNAL_SELL:
+                    # SELL cancels any existing watch list entry
+                    conn.execute(
+                        text("DELETE FROM buy_watch_list WHERE symbol = :sym"),
+                        {"sym": r["symbol"]},
+                    )
+                    conn.execute(
+                        text("DELETE FROM confirmed_breakouts WHERE symbol = :sym"),
+                        {"sym": r["symbol"]},
+                    )
+
+                # Only persist actual BUY/SELL signals in scan_results (not NONE)
+                if sig in (SIGNAL_BUY, SIGNAL_SELL):
+                    upsert_scan_result(
+                        conn,
+                        scan_date=r["scan_date"],
+                        symbol=r["symbol"],
+                        signal=sig,
+                        buy_date=r["signal_date"] if sig == SIGNAL_BUY else None,
+                        buy_high=r["high"]  if sig == SIGNAL_BUY else None,
+                        today_close=r["close"],
+                    )
 
     actionable = buy_count + sell_count
     log.info(

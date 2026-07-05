@@ -98,21 +98,30 @@ def compute_ut_bot(
 
     # ------------------------------------------------------------------
     # True Range → ATR  (Wilder's smoothing = EWM with alpha=1/period)
+    #
+    # When use_heikin_ashi=True we use HA_High / HA_Low / HA_Close for TR,
+    # matching TradingView's ta.atr() behaviour when the chart is set to
+    # Heikin Ashi mode (ta.atr reads the displayed OHLC, not raw OHLC).
     # ------------------------------------------------------------------
 
-    close = df["Close"].values  # always use raw close for TR calculation
-    raw_high = df["High"].values  # always use raw high for TR (not HA)
-    raw_low  = df["Low"].values   # always use raw low for TR (not HA)
+    if use_heikin_ashi:
+        atr_close = df["HA_Close"].values
+        atr_high  = df["HA_High"].values if "HA_High" in df.columns else df["High"].values
+        atr_low   = df["HA_Low"].values  if "HA_Low"  in df.columns else df["Low"].values
+    else:
+        atr_close = df["Close"].values
+        atr_high  = df["High"].values
+        atr_low   = df["Low"].values
 
     prev_close = np.empty(n)
-    prev_close[0] = close[0]
-    prev_close[1:] = close[:-1]
+    prev_close[0] = atr_close[0]
+    prev_close[1:] = atr_close[:-1]
 
     tr = np.maximum(
-        raw_high - raw_low,
+        atr_high - atr_low,
         np.maximum(
-            np.abs(raw_high - prev_close),
-            np.abs(raw_low  - prev_close),
+            np.abs(atr_high - prev_close),
+            np.abs(atr_low  - prev_close),
         ),
     )
 

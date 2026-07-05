@@ -24,11 +24,15 @@ Logic (runs after the daily scan):
     4. Compute today's HA_Close by loading the full raw candle history for
        the symbol and recomputing Heikin Ashi (needed because HA is iterative).
 
-    5. If today_ha_close > buy_ha_high:
+    5. Check ONLY the candle immediately after the BUY signal candle:
+           next_candle HA_Close > buy_ha_high
            → Upsert the symbol into confirmed_breakouts.
-       Else:
-           → Remove the symbol from confirmed_breakouts if it was previously there
-             (breakout has since reversed / not yet triggered).
+       If the very next candle does NOT close above buy_ha_high:
+           → The breakout is NOT confirmed.
+           → Remove from confirmed_breakouts if it was previously there.
+
+    The rule is strict: only an immediate follow-through on the next candle
+    qualifies. Moves many candles later are not counted as a breakout confirmation.
 
 Usage:
     python breakout.py [--symbol SYMBOL] [--dry-run]
@@ -115,12 +119,16 @@ def load_latest_buy_signals(conn, symbol: str | None = None) -> list[dict]:
     return [dict(r._mapping) for r in rows]
 
 
-def load_ha_close_today(conn, symbol: str) -> tuple[date | None, float | None]:
+def load_ha_next_candle(conn, symbol: str, signal_date) -> tuple[date | None, float | None]:
     """
-    Recompute Heikin Ashi from full raw candle history and return today's HA_Close.
+    Recompute Heikin Ashi from full raw candle history and return the HA_Close
+    of the candle IMMEDIATELY AFTER signal_date.
 
-    HA is an iterative calculation — we need the full history to get an
-    accurate today value that matches the scanner's own computation.
+    Breakout confirmation rule:
+        Only the very next candle after the BUY alert candle must close above
+        the BUY candle's HA_High. Any later candle does not count.
+
+    HA is iterative — full history is needed for an accurate value.
     """
     rows = conn.execute(
         text("""
@@ -140,8 +148,24 @@ def load_ha_close_today(conn, symbol: str) -> tuple[date | None, float | None]:
     df = df.set_index("Date")
 
     ha_df = append_heikin_ashi(df)
-    last_row = ha_df.iloc[-1]
-    return last_row.name.date(), float(last_row["HA_Close"])
+
+    # Find the row for signal_date
+    signal_ts = pd.Timestamp(signal_date)
+    if signal_ts not in ha_df.index:
+        # signal_date might not be in DB (holiday gap etc.) — find the nearest before
+        prior = ha_df.index[ha_df.index <= signal_ts]
+        if prior.empty:
+            return None, None
+        signal_ts = prior[-1]
+
+    # Get the position and advance one row (the next trading day)
+    pos = ha_df.index.get_loc(signal_ts)
+    if pos + 1 >= len(ha_df):
+        # No next candle yet (signal fired on the most recent bar — market still open)
+        return None, None
+
+    next_row = ha_df.iloc[pos + 1]
+    return next_row.name.date(), float(next_row["HA_Close"])
 
 
 def upsert_confirmed_breakout(conn, record: dict) -> None:
@@ -266,22 +290,27 @@ def run_breakout(
                 continue
 
             # ----------------------------------------------------------------
-            # 3. Today's HA_Close (recomputed from full raw history)
+            # 3. HA_Close of the candle immediately after the BUY signal candle
             # ----------------------------------------------------------------
-            today_date, today_ha_close = load_ha_close_today(conn, sym)
+            next_date, next_ha_close = load_ha_next_candle(conn, sym, buy_sig_date)
 
-            if today_ha_close is None:
+            if next_ha_close is None:
+                log.debug(
+                    "  %-15s  — no next candle after %s yet (signal may be today's bar)",
+                    sym, buy_sig_date,
+                )
                 skipped_no_data += 1
                 continue
 
             # ----------------------------------------------------------------
-            # 4. Breakout check: today HA_Close > buy candle HA_High
+            # 4. Breakout check: the NEXT candle's HA_Close > buy candle HA_High
+            #    (strict immediate follow-through only)
             # ----------------------------------------------------------------
-            if today_ha_close > ha_high:
-                pct_above = (today_ha_close - ha_high) / ha_high * 100
+            if next_ha_close > ha_high:
+                pct_above = (next_ha_close - ha_high) / ha_high * 100
                 log.info(
-                    "  %-15s  ✅ BREAKOUT  ha_buy_high=%.2f  ha_today_close=%.2f  (+%.1f%%)",
-                    sym, ha_high, today_ha_close, pct_above,
+                    "  %-15s  ✅ BREAKOUT  ha_buy_high=%.2f  next_ha_close=%.2f  (+%.1f%%)  [next candle: %s]",
+                    sym, ha_high, next_ha_close, pct_above, next_date,
                 )
 
                 record = {
@@ -292,8 +321,8 @@ def run_breakout(
                     "buy_candle_low":       ha_low,
                     "buy_candle_close":     ha_close,
                     "buy_candle_range_pct": round(change_pct, 4),
-                    "confirmation_date":    today_date,
-                    "confirmed_close":      today_ha_close,
+                    "confirmation_date":    next_date,
+                    "confirmed_close":      next_ha_close,
                 }
 
                 confirmed.append(record)
@@ -304,10 +333,10 @@ def run_breakout(
             else:
                 not_broken_out += 1
                 log.debug(
-                    "  %-15s  — no breakout  ha_buy_high=%.2f  ha_today_close=%.2f",
-                    sym, ha_high, today_ha_close,
+                    "  %-15s  — no breakout  ha_buy_high=%.2f  next_ha_close=%.2f  [next candle: %s]",
+                    sym, ha_high, next_ha_close, next_date,
                 )
-                # Remove from confirmed_breakouts if it previously was confirmed but pulled back
+                # Remove from confirmed_breakouts if previously confirmed but now reversed
                 if not dry_run:
                     remove_from_confirmed_breakouts(conn, sym)
 

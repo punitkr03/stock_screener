@@ -1,0 +1,1031 @@
+[
+  {
+    "id": 1,
+    "symbol": "CMPDI",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACMPDI",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACMPDI",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 2,
+    "symbol": "DCAL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADCAL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADCAL",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 3,
+    "symbol": "GALAPREC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGALAPREC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGALAPREC",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 4,
+    "symbol": "GATEWAY",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGATEWAY",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGATEWAY",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 5,
+    "symbol": "GENUSPOWER",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGENUSPOWER",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGENUSPOWER",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 6,
+    "symbol": "JUBLINGREA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJUBLINGREA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJUBLINGREA",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 7,
+    "symbol": "KANSAINER",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AKANSAINER",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AKANSAINER",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 8,
+    "symbol": "MARATHON",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMARATHON",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMARATHON",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 9,
+    "symbol": "MRF",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMRF",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMRF",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 10,
+    "symbol": "NDRAUTO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ANDRAUTO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ANDRAUTO",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 11,
+    "symbol": "PACEDIGITK",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APACEDIGITK",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APACEDIGITK",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 12,
+    "symbol": "PPAP",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APPAP",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APPAP",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 13,
+    "symbol": "SHREECEM",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASHREECEM",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASHREECEM",
+    "signal_date": "2026-07-02"
+  },
+  {
+    "id": 14,
+    "symbol": "BALAMINES",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABALAMINES",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABALAMINES",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 15,
+    "symbol": "CONFIPET",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACONFIPET",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACONFIPET",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 16,
+    "symbol": "DIAMONDYD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADIAMONDYD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADIAMONDYD",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 17,
+    "symbol": "FIVESTAR",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AFIVESTAR",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AFIVESTAR",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 18,
+    "symbol": "HCG",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AHCG",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AHCG",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 19,
+    "symbol": "JETFREIGHT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJETFREIGHT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJETFREIGHT",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 20,
+    "symbol": "PARAS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APARAS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APARAS",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 21,
+    "symbol": "RATEGAIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARATEGAIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARATEGAIN",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 22,
+    "symbol": "RPEL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARPEL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARPEL",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 23,
+    "symbol": "RPPL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARPPL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARPPL",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 24,
+    "symbol": "SKYGOLD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASKYGOLD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASKYGOLD",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 25,
+    "symbol": "TVSHLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ATVSHLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ATVSHLTD",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 26,
+    "symbol": "UTLSOLAR",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AUTLSOLAR",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AUTLSOLAR",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 27,
+    "symbol": "XPROINDIA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AXPROINDIA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AXPROINDIA",
+    "signal_date": "2026-07-01"
+  },
+  {
+    "id": 28,
+    "symbol": "BLUESTONE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABLUESTONE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABLUESTONE",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 29,
+    "symbol": "INDIAGLYCO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINDIAGLYCO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINDIAGLYCO",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 30,
+    "symbol": "INDIANCARD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINDIANCARD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINDIANCARD",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 31,
+    "symbol": "KERNEX",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AKERNEX",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AKERNEX",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 32,
+    "symbol": "MARUTI",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMARUTI",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMARUTI",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 33,
+    "symbol": "PRAJIND",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APRAJIND",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APRAJIND",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 34,
+    "symbol": "RML",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARML",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARML",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 35,
+    "symbol": "SGFIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASGFIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASGFIN",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 36,
+    "symbol": "UNICHEMLAB",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AUNICHEMLAB",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AUNICHEMLAB",
+    "signal_date": "2026-06-30"
+  },
+  {
+    "id": 37,
+    "symbol": "MARICO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMARICO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMARICO",
+    "signal_date": "2026-06-25"
+  },
+  {
+    "id": 38,
+    "symbol": "MODTHREAD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMODTHREAD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMODTHREAD",
+    "signal_date": "2026-06-25"
+  },
+  {
+    "id": 39,
+    "symbol": "SEAMECLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASEAMECLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASEAMECLTD",
+    "signal_date": "2026-06-24"
+  },
+  {
+    "id": 40,
+    "symbol": "ACMESOLAR",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AACMESOLAR",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AACMESOLAR",
+    "signal_date": "2026-06-23"
+  },
+  {
+    "id": 41,
+    "symbol": "ARKADE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AARKADE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AARKADE",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 42,
+    "symbol": "BLKASHYAP",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABLKASHYAP",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABLKASHYAP",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 43,
+    "symbol": "CIPLA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACIPLA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACIPLA",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 44,
+    "symbol": "FDC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AFDC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AFDC",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 45,
+    "symbol": "LAURUSLABS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ALAURUSLABS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ALAURUSLABS",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 46,
+    "symbol": "MAMATA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMAMATA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMAMATA",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 47,
+    "symbol": "YUKEN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AYUKEN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AYUKEN",
+    "signal_date": "2026-06-22"
+  },
+  {
+    "id": 48,
+    "symbol": "BOROLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABOROLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABOROLTD",
+    "signal_date": "2026-06-19"
+  },
+  {
+    "id": 49,
+    "symbol": "CEMPRO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACEMPRO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACEMPRO",
+    "signal_date": "2026-06-19"
+  },
+  {
+    "id": 50,
+    "symbol": "PARKHOSPS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APARKHOSPS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APARKHOSPS",
+    "signal_date": "2026-06-19"
+  },
+  {
+    "id": 51,
+    "symbol": "SONACOMS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASONACOMS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASONACOMS",
+    "signal_date": "2026-06-19"
+  },
+  {
+    "id": 52,
+    "symbol": "SUNPHARMA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASUNPHARMA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASUNPHARMA",
+    "signal_date": "2026-06-19"
+  },
+  {
+    "id": 53,
+    "symbol": "APLLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAPLLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAPLLTD",
+    "signal_date": "2026-06-18"
+  },
+  {
+    "id": 54,
+    "symbol": "ERIS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AERIS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AERIS",
+    "signal_date": "2026-06-18"
+  },
+  {
+    "id": 55,
+    "symbol": "ANANDRATHI",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AANANDRATHI",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AANANDRATHI",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 56,
+    "symbol": "DYCL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADYCL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADYCL",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 57,
+    "symbol": "GLAXO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGLAXO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGLAXO",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 58,
+    "symbol": "IGPL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AIGPL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AIGPL",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 59,
+    "symbol": "OLECTRA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AOLECTRA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AOLECTRA",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 60,
+    "symbol": "PURVA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APURVA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APURVA",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 61,
+    "symbol": "SJVN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASJVN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASJVN",
+    "signal_date": "2026-06-17"
+  },
+  {
+    "id": 62,
+    "symbol": "BAJAJELEC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABAJAJELEC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABAJAJELEC",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 63,
+    "symbol": "BDL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABDL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABDL",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 64,
+    "symbol": "CROMPTON",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACROMPTON",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACROMPTON",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 65,
+    "symbol": "DHUNINV",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADHUNINV",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADHUNINV",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 66,
+    "symbol": "GEEKAYWIRE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGEEKAYWIRE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGEEKAYWIRE",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 67,
+    "symbol": "JAGRAN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJAGRAN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJAGRAN",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 68,
+    "symbol": "PYRAMID",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APYRAMID",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APYRAMID",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 69,
+    "symbol": "SPANDANA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASPANDANA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASPANDANA",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 70,
+    "symbol": "SUYOG",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASUYOG",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASUYOG",
+    "signal_date": "2026-06-16"
+  },
+  {
+    "id": 71,
+    "symbol": "APOLLOTYRE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAPOLLOTYRE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAPOLLOTYRE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 72,
+    "symbol": "ARVSMART",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AARVSMART",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AARVSMART",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 73,
+    "symbol": "AYE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAYE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAYE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 74,
+    "symbol": "BAJAJFINSV",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABAJAJFINSV",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABAJAJFINSV",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 75,
+    "symbol": "BALKRISIND",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABALKRISIND",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABALKRISIND",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 76,
+    "symbol": "BALMLAWRIE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ABALMLAWRIE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ABALMLAWRIE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 77,
+    "symbol": "CHOICEIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACHOICEIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACHOICEIN",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 78,
+    "symbol": "CIEINDIA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACIEINDIA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACIEINDIA",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 79,
+    "symbol": "CREDITACC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACREDITACC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACREDITACC",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 80,
+    "symbol": "DLF",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADLF",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADLF",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 81,
+    "symbol": "EIEL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AEIEL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AEIEL",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 82,
+    "symbol": "EMBDL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AEMBDL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AEMBDL",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 83,
+    "symbol": "FOSECOIND",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AFOSECOIND",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AFOSECOIND",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 84,
+    "symbol": "GALAXYSURF",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGALAXYSURF",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGALAXYSURF",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 85,
+    "symbol": "HDFCAMC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AHDFCAMC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AHDFCAMC",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 86,
+    "symbol": "INDNIPPON",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINDNIPPON",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINDNIPPON",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 87,
+    "symbol": "ITC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AITC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AITC",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 88,
+    "symbol": "JKCEMENT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJKCEMENT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJKCEMENT",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 89,
+    "symbol": "JTEKTINDIA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJTEKTINDIA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJTEKTINDIA",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 90,
+    "symbol": "MAHEPC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMAHEPC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMAHEPC",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 91,
+    "symbol": "MARINE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMARINE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMARINE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 92,
+    "symbol": "MASFIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMASFIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMASFIN",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 93,
+    "symbol": "MUTHOOTMF",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMUTHOOTMF",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMUTHOOTMF",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 94,
+    "symbol": "NAVA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ANAVA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ANAVA",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 95,
+    "symbol": "NORTHARC",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ANORTHARC",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ANORTHARC",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 96,
+    "symbol": "PRESTIGE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APRESTIGE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APRESTIGE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 97,
+    "symbol": "RPTECH",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARPTECH",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARPTECH",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 98,
+    "symbol": "SCODATUBES",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASCODATUBES",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASCODATUBES",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 99,
+    "symbol": "SHILCTECH",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASHILCTECH",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASHILCTECH",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 100,
+    "symbol": "SUZLON",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASUZLON",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASUZLON",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 101,
+    "symbol": "TECHNOE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ATECHNOE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ATECHNOE",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 102,
+    "symbol": "TIRUPATIFL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ATIRUPATIFL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ATIRUPATIFL",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 103,
+    "symbol": "TITAN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ATITAN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ATITAN",
+    "signal_date": "2026-06-15"
+  },
+  {
+    "id": 104,
+    "symbol": "ACE",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AACE",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AACE",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 105,
+    "symbol": "AHLUCONT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAHLUCONT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAHLUCONT",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 106,
+    "symbol": "ASHOKLEY",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AASHOKLEY",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AASHOKLEY",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 107,
+    "symbol": "AUBANK",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAUBANK",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAUBANK",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 108,
+    "symbol": "CEATLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACEATLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACEATLTD",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 109,
+    "symbol": "CHOLAFIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACHOLAFIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACHOLAFIN",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 110,
+    "symbol": "DIVGIITTS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ADIVGIITTS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ADIVGIITTS",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 111,
+    "symbol": "GABRIEL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGABRIEL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGABRIEL",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 112,
+    "symbol": "GROWW",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGROWW",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGROWW",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 113,
+    "symbol": "HDFCBANK",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AHDFCBANK",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AHDFCBANK",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 114,
+    "symbol": "INDIGOPNTS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINDIGOPNTS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINDIGOPNTS",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 115,
+    "symbol": "INOXGREEN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINOXGREEN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINOXGREEN",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 116,
+    "symbol": "LTF",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ALTF",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ALTF",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 117,
+    "symbol": "MANAPPURAM",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMANAPPURAM",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMANAPPURAM",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 118,
+    "symbol": "MOTILALOFS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMOTILALOFS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMOTILALOFS",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 119,
+    "symbol": "NAVINFLUOR",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ANAVINFLUOR",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ANAVINFLUOR",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 120,
+    "symbol": "NAZARA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ANAZARA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ANAZARA",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 121,
+    "symbol": "PRIVISCL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APRIVISCL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APRIVISCL",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 122,
+    "symbol": "RGL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ARGL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ARGL",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 123,
+    "symbol": "SHRIRAMFIN",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASHRIRAMFIN",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASHRIRAMFIN",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 124,
+    "symbol": "TRIVENI",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ATRIVENI",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ATRIVENI",
+    "signal_date": "2026-06-12"
+  },
+  {
+    "id": 125,
+    "symbol": "AAVAS",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AAAVAS",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AAAVAS",
+    "signal_date": "2026-06-11"
+  },
+  {
+    "id": 126,
+    "symbol": "PRUDENT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APRUDENT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APRUDENT",
+    "signal_date": "2026-06-11"
+  },
+  {
+    "id": 127,
+    "symbol": "ICICIBANK",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AICICIBANK",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AICICIBANK",
+    "signal_date": "2026-06-09"
+  },
+  {
+    "id": 128,
+    "symbol": "CAPLIPOINT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACAPLIPOINT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACAPLIPOINT",
+    "signal_date": "2026-06-08"
+  },
+  {
+    "id": 129,
+    "symbol": "MAXHEALTH",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMAXHEALTH",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMAXHEALTH",
+    "signal_date": "2026-06-05"
+  },
+  {
+    "id": 130,
+    "symbol": "SFL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASFL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASFL",
+    "signal_date": "2026-06-05"
+  },
+  {
+    "id": 131,
+    "symbol": "GREENPLY",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AGREENPLY",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AGREENPLY",
+    "signal_date": "2026-06-04"
+  },
+  {
+    "id": 132,
+    "symbol": "PTL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APTL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APTL",
+    "signal_date": "2026-06-04"
+  },
+  {
+    "id": 133,
+    "symbol": "ZOTA",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AZOTA",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AZOTA",
+    "signal_date": "2026-06-04"
+  },
+  {
+    "id": 134,
+    "symbol": "SSWL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASSWL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASSWL",
+    "signal_date": "2026-06-03"
+  },
+  {
+    "id": 135,
+    "symbol": "VARDMNPOLY",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AVARDMNPOLY",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AVARDMNPOLY",
+    "signal_date": "2026-06-02"
+  },
+  {
+    "id": 136,
+    "symbol": "SCPL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASCPL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASCPL",
+    "signal_date": "2026-06-01"
+  },
+  {
+    "id": 137,
+    "symbol": "CGCL",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACGCL",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACGCL",
+    "signal_date": "2026-05-29"
+  },
+  {
+    "id": 138,
+    "symbol": "JSWDULUX",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AJSWDULUX",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AJSWDULUX",
+    "signal_date": "2026-05-29"
+  },
+  {
+    "id": 139,
+    "symbol": "SKMEGGPROD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ASKMEGGPROD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ASKMEGGPROD",
+    "signal_date": "2026-05-27"
+  },
+  {
+    "id": 140,
+    "symbol": "IDFCFIRSTB",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AIDFCFIRSTB",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AIDFCFIRSTB",
+    "signal_date": "2026-05-26"
+  },
+  {
+    "id": 141,
+    "symbol": "PSPPROJECT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APSPPROJECT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APSPPROJECT",
+    "signal_date": "2026-05-26"
+  },
+  {
+    "id": 142,
+    "symbol": "UMESLTD",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AUMESLTD",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AUMESLTD",
+    "signal_date": "2026-05-26"
+  },
+  {
+    "id": 143,
+    "symbol": "CUPID",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3ACUPID",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3ACUPID",
+    "signal_date": "2026-05-25"
+  },
+  {
+    "id": 144,
+    "symbol": "INDIGO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AINDIGO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AINDIGO",
+    "signal_date": "2026-05-22"
+  },
+  {
+    "id": 145,
+    "symbol": "MINDACORP",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AMINDACORP",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AMINDACORP",
+    "signal_date": "2026-05-21"
+  },
+  {
+    "id": 146,
+    "symbol": "PAISALO",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3APAISALO",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3APAISALO",
+    "signal_date": "2026-05-20"
+  },
+  {
+    "id": 147,
+    "symbol": "ADANIENT",
+    "punit_link": "https://in.tradingview.com/chart/zMHJZH2k/?symbol=NSE%3AADANIENT",
+    "vivek_link": "https://www.tradingview.com/chart/RdGFPK5y/?symbol=NSE%3AADANIENT",
+    "signal_date": "2026-04-07"
+  }
+]
