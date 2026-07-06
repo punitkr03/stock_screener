@@ -3,7 +3,11 @@
 open_charts.py
 
 Queries the database for symbols in the watch lists (buy_watch_list or confirmed_breakouts),
-writes them to a JSON file, then opens them in TradingView charts in the default browser.
+writes them to JSON files, then opens them in TradingView charts in the default browser.
+
+Outputs TWO JSON files on every run:
+    buy_confirmed_watchlist.json  - symbols with a confirmed breakout (confirmed_breakouts table)
+    buy_signal_watchlist.json     - all symbols with an active BUY signal (buy_watch_list table)
 
 JSON output structure per entry:
     id          - sequential integer
@@ -30,7 +34,8 @@ from config import DATABASE_URL
 PUNIT_CHART_ID = "zMHJZH2k"   # https://in.tradingview.com/chart/zMHJZH2k/
 VIVEK_CHART_ID = "RdGFPK5y"   # https://www.tradingview.com/chart/RdGFPK5y/
 
-OUTPUT_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.json")
+OUTPUT_CONFIRMED_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buy_confirmed_watchlist.json")
+OUTPUT_SIGNAL_JSON   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buy_signal_watchlist.json")
 
 
 def get_engine():
@@ -55,13 +60,18 @@ def get_entries(table_name: str = "confirmed_breakouts") -> list[dict]:
         query = """
             SELECT symbol, signal_date
             FROM confirmed_breakouts
-            ORDER BY confirmation_date DESC, symbol;
+            ORDER BY signal_date DESC, symbol;
         """
     else:
+        # DISTINCT ON needs ORDER BY symbol first to pick the latest signal_date per symbol,
+        # then we wrap in a subquery to re-sort by signal_date DESC for the final output.
         query = """
-            SELECT DISTINCT ON (symbol) symbol, signal_date
-            FROM buy_watch_list
-            ORDER BY symbol, signal_date DESC;
+            SELECT symbol, signal_date FROM (
+                SELECT DISTINCT ON (symbol) symbol, signal_date
+                FROM buy_watch_list
+                ORDER BY symbol, signal_date DESC
+            ) sub
+            ORDER BY signal_date DESC, symbol;
         """
 
     with engine.connect() as conn:
@@ -100,12 +110,7 @@ def open_punit_chart(symbol: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Export watch list to JSON and open TradingView charts."
-    )
-    parser.add_argument(
-        "--confirmed",
-        action="store_true",
-        help="Use confirmed_breakouts instead of buy_watch_list (default: confirmed_breakouts)",
+        description="Export watch lists to JSON and open TradingView charts."
     )
     parser.add_argument(
         "--batch-size",
@@ -117,7 +122,7 @@ def main():
         "--limit",
         type=int,
         default=None,
-        help="Maximum number of symbols to process",
+        help="Maximum number of symbols to process (applies to confirmed list only)",
     )
     parser.add_argument(
         "--no-prompt",
@@ -127,43 +132,63 @@ def main():
     parser.add_argument(
         "--json-only",
         action="store_true",
-        help="Only write the JSON file, do not open any browser tabs",
+        help="Only write the JSON files, do not open any browser tabs",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default=OUTPUT_JSON,
-        help=f"Path for the output JSON file (default: {OUTPUT_JSON})",
+        default=OUTPUT_CONFIRMED_JSON,
+        help=f"Path for the confirmed watchlist JSON file (default: {OUTPUT_CONFIRMED_JSON})",
+    )
+    parser.add_argument(
+        "--output-signal",
+        type=str,
+        default=OUTPUT_SIGNAL_JSON,
+        help=f"Path for the buy-signal watchlist JSON file (default: {OUTPUT_SIGNAL_JSON})",
     )
 
     args = parser.parse_args()
 
-    # Always use confirmed_breakouts unless --confirmed flag is absent and user
-    # explicitly passes --no-confirmed (kept for backward compat, currently hardcoded).
-    table = "confirmed_breakouts"
-    entries = get_entries(table)
-
-    if not entries:
-        print(f"No symbols found in '{table}'.")
-        return
-
-    if args.limit:
-        entries = entries[: args.limit]
+    # -----------------------------------------------------------------------
+    # Step 1: Fetch both lists from DB
+    # -----------------------------------------------------------------------
+    confirmed_entries = get_entries("confirmed_breakouts")
+    signal_entries    = get_entries("buy_watch_list")
 
     # -----------------------------------------------------------------------
-    # Step 1: Write JSON
+    # Step 2: Write both JSON files
     # -----------------------------------------------------------------------
-    write_json(entries, args.output)
+    if confirmed_entries:
+        entries_to_write = confirmed_entries[: args.limit] if args.limit else confirmed_entries
+        write_json(entries_to_write, args.output)
+    else:
+        print("No symbols found in 'confirmed_breakouts' — skipping buy_confirmed_watchlist.json.")
+        entries_to_write = []
+
+    if signal_entries:
+        write_json(signal_entries, args.output_signal)
+    else:
+        print("No symbols found in 'buy_watch_list' — skipping buy_signal_watchlist.json.")
+
+    print(
+        f"\nSummary:\n"
+        f"  buy_confirmed_watchlist : {len(entries_to_write)} symbols\n"
+        f"  buy_signal_watchlist    : {len(signal_entries)} symbols"
+    )
 
     if args.json_only:
         return
 
     # -----------------------------------------------------------------------
-    # Step 2: Open browser tabs
+    # Step 3: Open browser tabs (confirmed list only)
     # -----------------------------------------------------------------------
-    symbols = [e["symbol"] for e in entries]
+    if not entries_to_write:
+        print("Nothing to open.")
+        return
+
+    symbols = [e["symbol"] for e in entries_to_write]
     total = len(symbols)
-    print(f"\nFound {total} symbols. Opening Punit's TradingView charts (layout: {PUNIT_CHART_ID}) …\n")
+    print(f"\nOpening {total} confirmed symbols in Punit's TradingView layout ({PUNIT_CHART_ID}) …\n")
 
     if args.no_prompt:
         for sym in symbols:

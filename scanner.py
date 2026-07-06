@@ -45,6 +45,11 @@ from config import (
 )
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_BUY, SIGNAL_NONE, SIGNAL_SELL, compute_ut_bot
+from open_charts import (
+    get_entries,
+    write_json,
+    OUTPUT_SIGNAL_JSON,
+)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -507,6 +512,19 @@ def run_scan(
         sell_count,
         actionable,
     )
+
+    # ------------------------------------------------------------------
+    # Export JSON watchlist (buy signals only — confirmed list is written
+    # AFTER breakout.py runs, so that is handled by the caller / main.py)
+    # ------------------------------------------------------------------
+    if use_db:
+        log.info("Exporting buy_signal_watchlist.json …")
+        signals = get_entries("buy_watch_list")
+        if signals:
+            write_json(signals, OUTPUT_SIGNAL_JSON)
+            log.info("  buy_signal_watchlist : %d symbols → %s", len(signals), OUTPUT_SIGNAL_JSON)
+        else:
+            log.info("  buy_watch_list is empty — buy_signal_watchlist.json not written.")
 
     return results
 

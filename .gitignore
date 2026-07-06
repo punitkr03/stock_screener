@@ -1,3 +1,5 @@
 .venv
 .env
 symbols.csv
+__pycache__
+*watchlist*.json

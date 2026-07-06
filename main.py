@@ -7,9 +7,12 @@ NSE UT Bot Scanner — CLI Entry Point
 Commands:
     python main.py fetch-symbols    Download all listed NSE equities → DB + symbols.csv
     python main.py download         Download OHLC history from yfinance → DB
-    python main.py scan             Run UT Bot scanner → signals DB
-    python main.py breakout         Run breakout confirmation → buy_watch_list DB
-    python main.py run              Full daily pipeline: download + scan + breakout
+    python main.py scan             Run UT Bot scanner → signals DB + buy_signal_watchlist.json
+    python main.py breakout         Run breakout confirmation → confirmed_breakouts DB
+    python main.py export           Export buy_confirmed_watchlist.json & buy_signal_watchlist.json
+    python main.py run              Full daily pipeline:
+                                      download → scan (buy_signal_watchlist.json)
+                                      → breakout → export buy_confirmed_watchlist.json
 """
 
 from __future__ import annotations
@@ -67,8 +70,23 @@ def cmd_breakout(args) -> None:
     sys.exit(_run("breakout.py", extra))
 
 
+def cmd_export(_args) -> None:
+    """Write buy_confirmed_watchlist.json and buy_signal_watchlist.json."""
+    sys.exit(_run("open_charts.py", ["--json-only"]))
+
+
 def cmd_run(args) -> None:
-    """Full daily pipeline: download (recent) → scan → breakout."""
+    """
+    Full daily pipeline (order matters):
+      1. download  — fetch recent OHLC
+      2. scan      — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
+      3. breakout  — confirm breakouts, update confirmed_breakouts
+      4. export    — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
+    """
+    import sys as _sys
+    import os as _os
+    _sys.path.insert(0, PROJECT)
+    from open_charts import get_entries, write_json, OUTPUT_CONFIRMED_JSON
 
     rc = _run("download_history.py", ["--recent"])
     if rc != 0:
@@ -82,7 +100,20 @@ def cmd_run(args) -> None:
         sys.exit(rc)
 
     rc = _run("breakout.py")
-    sys.exit(rc)
+    if rc != 0:
+        print(f"[ERROR] breakout.py failed (exit {rc})")
+        sys.exit(rc)
+
+    # Export confirmed watchlist NOW — after breakout.py has refreshed confirmed_breakouts.
+    print("\nExporting buy_confirmed_watchlist.json …")
+    confirmed = get_entries("confirmed_breakouts")
+    if confirmed:
+        write_json(confirmed, OUTPUT_CONFIRMED_JSON)
+        print(f"  buy_confirmed_watchlist : {len(confirmed)} symbols")
+    else:
+        print("  confirmed_breakouts is empty — buy_confirmed_watchlist.json not written.")
+
+    sys.exit(0)
 
 
 
@@ -148,8 +179,14 @@ def main() -> None:
         help="Print results without writing to DB",
     )
 
+    # export
+    sub.add_parser(
+        "export",
+        help="Export buy_confirmed_watchlist.json and buy_signal_watchlist.json",
+    )
+
     # run
-    sub.add_parser("run", help="Full daily pipeline: download + scan + breakout")
+    sub.add_parser("run", help="Full daily pipeline: download + scan + breakout + export")
 
     args = p.parse_args()
 
@@ -158,6 +195,7 @@ def main() -> None:
         "download":      cmd_download,
         "scan":          cmd_scan,
         "breakout":      cmd_breakout,
+        "export":        cmd_export,
         "run":           cmd_run,
     }
     dispatch[args.command](args)
