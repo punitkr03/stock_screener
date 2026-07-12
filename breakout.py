@@ -21,18 +21,21 @@ Logic (runs after the daily scan):
        A candle that swung more than 10% high-to-low is an exhaustion move —
        chasing it is high risk.
 
-    4. Compute today's HA_Close by loading the full raw candle history for
-       the symbol and recomputing Heikin Ashi (needed because HA is iterative).
+    4. Recompute the full HA candle history + UT Bot signals from daily_candles.
 
-    5. Check ONLY the candle immediately after the BUY signal candle:
-           next_candle HA_Close > buy_ha_high
-           → Upsert the symbol into confirmed_breakouts.
-       If the very next candle does NOT close above buy_ha_high:
-           → The breakout is NOT confirmed.
-           → Remove from confirmed_breakouts if it was previously there.
+    5. Two-stage breakout check (both using HA values):
 
-    The rule is strict: only an immediate follow-through on the next candle
-    qualifies. Moves many candles later are not counted as a breakout confirmation.
+       a) NEXT-DAY (T+1) — strict immediate follow-through:
+              candle immediately after BUY signal candle HA_Close > buy HA_High
+              → Confirmed.
+
+       b) CURRENT-DAY — deferred breakout, today's close above buy level:
+              Today's HA_Close > buy HA_High
+              AND no SELL signal between the buy signal date and today (inclusive).
+              → Confirmed.
+
+       If EITHER condition is met the symbol is upserted into confirmed_breakouts.
+       If NEITHER condition is met the symbol is removed from confirmed_breakouts.
 
 Usage:
     python breakout.py [--symbol SYMBOL] [--dry-run]
@@ -50,8 +53,9 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import DATABASE_URL
+from config import DATABASE_URL, UT_BOT_ATR_PERIOD, UT_BOT_KEY_VALUE
 from indicators.heikin_ashi import append_heikin_ashi
+from indicators.ut_bot import SIGNAL_SELL, compute_ut_bot
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -119,16 +123,14 @@ def load_latest_buy_signals(conn, symbol: str | None = None) -> list[dict]:
     return [dict(r._mapping) for r in rows]
 
 
-def load_ha_next_candle(conn, symbol: str, signal_date) -> tuple[date | None, float | None]:
+def load_ha_dataframe(conn, symbol: str) -> pd.DataFrame:
     """
-    Recompute Heikin Ashi from full raw candle history and return the HA_Close
-    of the candle IMMEDIATELY AFTER signal_date.
-
-    Breakout confirmation rule:
-        Only the very next candle after the BUY alert candle must close above
-        the BUY candle's HA_High. Any later candle does not count.
+    Load the full raw candle history and return a DataFrame with HA + UT Bot
+    Signal columns appended.
 
     HA is iterative — full history is needed for an accurate value.
+    The UT Bot is also path-dependent (Wilder ATR), so we compute both on the
+    complete history.
     """
     rows = conn.execute(
         text("""
@@ -141,31 +143,105 @@ def load_ha_next_candle(conn, symbol: str, signal_date) -> tuple[date | None, fl
     ).fetchall()
 
     if not rows:
-        return None, None
+        return pd.DataFrame()
 
     df = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close"])
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.set_index("Date")
 
-    ha_df = append_heikin_ashi(df)
+    df = append_heikin_ashi(df)
+    df = compute_ut_bot(
+        df,
+        atr_period=UT_BOT_ATR_PERIOD,
+        key_value=UT_BOT_KEY_VALUE,
+        use_heikin_ashi=True,
+    )
+    return df
 
-    # Find the row for signal_date
+
+# ---------------------------------------------------------------------------
+# Breakout checkers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_signal_ts(ha_df: pd.DataFrame, signal_date) -> pd.Timestamp | None:
+    """
+    Find the index timestamp for signal_date in ha_df.
+    If the exact date is missing (holiday, gap), fall back to the nearest
+    prior trading day.
+    """
     signal_ts = pd.Timestamp(signal_date)
-    if signal_ts not in ha_df.index:
-        # signal_date might not be in DB (holiday gap etc.) — find the nearest before
-        prior = ha_df.index[ha_df.index <= signal_ts]
-        if prior.empty:
-            return None, None
-        signal_ts = prior[-1]
+    if signal_ts in ha_df.index:
+        return signal_ts
+    prior = ha_df.index[ha_df.index <= signal_ts]
+    return prior[-1] if not prior.empty else None
 
-    # Get the position and advance one row (the next trading day)
+
+def check_next_day_breakout(
+    ha_df: pd.DataFrame,
+    signal_date,
+    buy_ha_high: float,
+) -> tuple[date | None, float | None]:
+    """
+    Check whether the candle IMMEDIATELY after signal_date closes above
+    buy_ha_high (T+1 strict follow-through).
+
+    Returns (confirmation_date, confirmed_ha_close) or (None, None).
+    """
+    signal_ts = _resolve_signal_ts(ha_df, signal_date)
+    if signal_ts is None:
+        return None, None
+
     pos = ha_df.index.get_loc(signal_ts)
     if pos + 1 >= len(ha_df):
-        # No next candle yet (signal fired on the most recent bar — market still open)
+        # No next candle yet (signal fired on the most recent bar)
         return None, None
 
     next_row = ha_df.iloc[pos + 1]
-    return next_row.name.date(), float(next_row["HA_Close"])
+    next_ha_close = float(next_row["HA_Close"])
+
+    if next_ha_close > buy_ha_high:
+        return next_row.name.date(), next_ha_close
+    return None, None
+
+
+def check_current_day_breakout(
+    ha_df: pd.DataFrame,
+    signal_date,
+    buy_ha_high: float,
+) -> tuple[date | None, float | None]:
+    """
+    Check whether the MOST RECENT candle closes above buy_ha_high,
+    provided no SELL signal occurred between signal_date (exclusive) and
+    the current bar (inclusive).
+
+    The "no-sell" constraint ensures we only count the deferred breakout
+    while the original BUY thesis is still intact.
+
+    Returns (confirmation_date, confirmed_ha_close) or (None, None).
+    """
+    signal_ts = _resolve_signal_ts(ha_df, signal_date)
+    if signal_ts is None:
+        return None, None
+
+    pos = ha_df.index.get_loc(signal_ts)
+    # Slice from the candle AFTER the buy signal up to (and including) today
+    window = ha_df.iloc[pos + 1:]
+
+    if window.empty:
+        return None, None
+
+    # Check for any SELL signal in this window — if found, breakout is void
+    if SIGNAL_SELL in window["Signal"].values:
+        return None, None
+
+    # Compare today's (last bar's) HA_Close against the buy signal HA_High
+    today_row = window.iloc[-1]
+    today_ha_close = float(today_row["HA_Close"])
+
+    if today_ha_close > buy_ha_high:
+        return today_row.name.date(), today_ha_close
+    return None, None
 
 
 def upsert_confirmed_breakout(conn, record: dict) -> None:
@@ -290,55 +366,69 @@ def run_breakout(
                 continue
 
             # ----------------------------------------------------------------
-            # 3. HA_Close of the candle immediately after the BUY signal candle
+            # 3. Load full HA + UT Bot data (recomputed from scratch)
             # ----------------------------------------------------------------
-            next_date, next_ha_close = load_ha_next_candle(conn, sym, buy_sig_date)
+            ha_df = load_ha_dataframe(conn, sym)
 
-            if next_ha_close is None:
-                log.debug(
-                    "  %-15s  — no next candle after %s yet (signal may be today's bar)",
-                    sym, buy_sig_date,
-                )
+            if ha_df.empty:
+                log.debug("  %-15s  — no candle data in DB, skipping", sym)
                 skipped_no_data += 1
                 continue
 
             # ----------------------------------------------------------------
-            # 4. Breakout check: the NEXT candle's HA_Close > buy candle HA_High
-            #    (strict immediate follow-through only)
+            # 4a. T+1 breakout check (immediate next candle)
             # ----------------------------------------------------------------
-            if next_ha_close > ha_high:
+            next_date, next_ha_close = check_next_day_breakout(ha_df, buy_sig_date, ha_high)
+
+            # ----------------------------------------------------------------
+            # 4b. Current-day breakout check (deferred, no SELL in between)
+            # ----------------------------------------------------------------
+            cur_date, cur_ha_close = check_current_day_breakout(ha_df, buy_sig_date, ha_high)
+
+            # ----------------------------------------------------------------
+            # 5. Decide: prefer next_day if both fire; fall back to current_day
+            # ----------------------------------------------------------------
+            if next_ha_close is not None:
                 pct_above = (next_ha_close - ha_high) / ha_high * 100
+                conf_date, conf_close = next_date, next_ha_close
                 log.info(
-                    "  %-15s  ✅ BREAKOUT  ha_buy_high=%.2f  next_ha_close=%.2f  (+%.1f%%)  [next candle: %s]",
-                    sym, ha_high, next_ha_close, pct_above, next_date,
+                    "  %-15s  ✅ BREAKOUT (next_day)     ha_buy_high=%.2f  next_ha_close=%.2f  (+%.1f%%)  [%s]",
+                    sym, ha_high, conf_close, pct_above, conf_date,
                 )
-
-                record = {
-                    "symbol":               sym,
-                    "signal_date":          buy_sig_date,
-                    "buy_candle_open":      ha_open,
-                    "buy_candle_high":      ha_high,
-                    "buy_candle_low":       ha_low,
-                    "buy_candle_close":     ha_close,
-                    "buy_candle_range_pct": round(change_pct, 4),
-                    "confirmation_date":    next_date,
-                    "confirmed_close":      next_ha_close,
-                }
-
-                confirmed.append(record)
-
-                if not dry_run:
-                    upsert_confirmed_breakout(conn, record)
-
+            elif cur_ha_close is not None:
+                pct_above = (cur_ha_close - ha_high) / ha_high * 100
+                conf_date, conf_close = cur_date, cur_ha_close
+                log.info(
+                    "  %-15s  ✅ BREAKOUT (current_day)  ha_buy_high=%.2f  confirmed_close=%.2f  (+%.1f%%)  [%s]",
+                    sym, ha_high, conf_close, pct_above, conf_date,
+                )
             else:
                 not_broken_out += 1
                 log.debug(
-                    "  %-15s  — no breakout  ha_buy_high=%.2f  next_ha_close=%.2f  [next candle: %s]",
-                    sym, ha_high, next_ha_close, next_date,
+                    "  %-15s  — no breakout  ha_buy_high=%.2f  [buy_date: %s]",
+                    sym, ha_high, buy_sig_date,
                 )
                 # Remove from confirmed_breakouts if previously confirmed but now reversed
                 if not dry_run:
                     remove_from_confirmed_breakouts(conn, sym)
+                continue
+
+            record = {
+                "symbol":               sym,
+                "signal_date":          buy_sig_date,
+                "buy_candle_open":      ha_open,
+                "buy_candle_high":      ha_high,
+                "buy_candle_low":       ha_low,
+                "buy_candle_close":     ha_close,
+                "buy_candle_range_pct": round(change_pct, 4),
+                "confirmation_date":    conf_date,
+                "confirmed_close":      conf_close,
+            }
+
+            confirmed.append(record)
+
+            if not dry_run:
+                upsert_confirmed_breakout(conn, record)
 
     log.info(
         "\n─── Breakout scan complete ──────────────────────────\n"
