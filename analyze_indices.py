@@ -53,7 +53,7 @@ INDICES_JSON = "nifty_indices.json"
 OUTPUT_JSON = "indices_data.json"
 
 REFRESH_DAYS = 7       # calendar days to re-pull on each run
-DELAY_SECS = 0.8       # polite delay between API calls
+DELAY_SECS = 0.1       # polite delay between API calls
 
 DEFAULT_BENCHMARK = "NIFTY"  # trading_symbol for Nifty 50 in nifty_indices.json / daily_candles
 

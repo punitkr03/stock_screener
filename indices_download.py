@@ -40,9 +40,9 @@ AUTH_TOKEN = os.environ["UPSTOX_AUTH_TOKEN"]
 INDICES_JSON = "nifty_indices.json"
 
 TO_DATE = date.today()
-FROM_DATE = TO_DATE - timedelta(days=5)
+FROM_DATE = TO_DATE - timedelta(days=365 * 5)
 
-DELAY_SECS = 1       # polite delay between successive API calls
+DELAY_SECS = 0.1       # polite delay between successive API calls
 
 engine = create_engine(DATABASE_URL)
 
