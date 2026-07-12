@@ -3,4 +3,5 @@
 symbols.csv
 __pycache__
 *watchlist*.json
-*indices*
+indices_data.json
+nifty_indices.json
