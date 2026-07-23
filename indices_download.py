@@ -39,7 +39,7 @@ AUTH_TOKEN = os.environ["UPSTOX_AUTH_TOKEN"]
 
 INDICES_JSON = "nifty_indices.json"
 
-TO_DATE = date.today()
+TO_DATE = date.today() + timedelta(days=1)   # +1: Upstox to_date is exclusive
 FROM_DATE = TO_DATE - timedelta(days=365 * 5)
 
 DELAY_SECS = 0.1       # polite delay between successive API calls

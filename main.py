@@ -6,7 +6,7 @@ NSE UT Bot Scanner — CLI Entry Point
 
 Commands:
     python main.py fetch-symbols    Download all listed NSE equities → DB + symbols.csv
-    python main.py download         Download OHLC history from yfinance → DB
+    python main.py download         Download OHLC history from Upstox API v3 → DB
     python main.py scan             Run UT Bot scanner → signals DB + buy_signal_watchlist.json
     python main.py breakout         Run breakout confirmation → confirmed_breakouts DB
     python main.py export           Export buy_confirmed_watchlist.json & buy_signal_watchlist.json
@@ -78,7 +78,7 @@ def cmd_export(_args) -> None:
 def cmd_run(args) -> None:
     """
     Full daily pipeline (order matters):
-      1. download  — fetch recent OHLC
+      1. download  — fetch recent OHLC via Upstox API v3 (last 7 days)
       2. scan      — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
       3. breakout  — confirm breakouts, update confirmed_breakouts
       4. export    — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
@@ -129,7 +129,7 @@ def main() -> None:
     sub.add_parser("fetch-symbols", help="Download all listed NSE equities to symbols.csv")
 
     # download
-    dl_p = sub.add_parser("download", help="Download OHLC history to PostgreSQL")
+    dl_p = sub.add_parser("download", help="Download OHLC history from Upstox API v3 to PostgreSQL")
     dl_p.add_argument(
         "--test",
         action="store_true",

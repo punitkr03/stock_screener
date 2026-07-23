@@ -1,7 +1,7 @@
 .venv
 .env
 symbols.csv
-__pycache__
+*__pycache__*
 *watchlist*.json
 indices_data.json
 nifty_indices.json

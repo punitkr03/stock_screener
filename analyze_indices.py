@@ -103,7 +103,7 @@ def ensure_index_in_stocks(symbol: str, name: str) -> None:
 
 def refresh_recent_candles(indices: list[dict], days: int = REFRESH_DAYS) -> None:
     """Download and upsert the last `days` calendar days for every index."""
-    to_date = date.today()
+    to_date = date.today() + timedelta(days=1)   # +1: Upstox to_date is exclusive
     from_date = to_date - timedelta(days=days)
 
     headers = {
