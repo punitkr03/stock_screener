@@ -1,8 +1,33 @@
 # ---------------------------------------------------------------------------
-# Database
+# Environment
 # ---------------------------------------------------------------------------
 
-DATABASE_URL = "postgresql://postgres:password@localhost:5432/nse_scanner"
+import os
+from dotenv import load_dotenv
+
+# Load variables from .env (no-op if the file doesn't exist)
+load_dotenv()
+
+# ---------------------------------------------------------------------------
+# PostgreSQL Database
+# ---------------------------------------------------------------------------
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:password@localhost:5432/nse_scanner",
+)
+
+# ---------------------------------------------------------------------------
+# MongoDB
+# ---------------------------------------------------------------------------
+
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_DB  = os.getenv("MONGODB_DB", "nse_scanner")
+
+# Collection names
+MONGO_COLLECTION_BUY_CONFIRMED = "buy_confirmed_data"
+MONGO_COLLECTION_BUY_SIGNAL    = "buy_signal_data"
+MONGO_COLLECTION_INDICES       = "indices_data"
 
 # ---------------------------------------------------------------------------
 # yfinance download settings

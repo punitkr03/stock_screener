@@ -34,7 +34,8 @@ import pandas as pd
 import requests
 from sqlalchemy import create_engine, text
 
-from config import DATABASE_URL
+from config import DATABASE_URL, MONGO_COLLECTION_INDICES
+from db.mongo import write_collection
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -492,6 +493,12 @@ def main() -> None:
 
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(output, fh, indent=2, ensure_ascii=False)
+
+    # ── 4b. Write to MongoDB ───────────────────────────────────────────────────
+    try:
+        write_collection(MONGO_COLLECTION_INDICES, output)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[MongoDB] Warning: failed to write to '{MONGO_COLLECTION_INDICES}': {exc}")
 
     s = output["summary"]
     print(f"\n[Done] {len(results)} indices → '{args.output}'")

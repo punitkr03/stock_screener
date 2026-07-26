@@ -25,7 +25,8 @@ import webbrowser
 import time
 from datetime import date
 from sqlalchemy import create_engine, text
-from config import DATABASE_URL
+from config import DATABASE_URL, MONGO_COLLECTION_BUY_CONFIRMED, MONGO_COLLECTION_BUY_SIGNAL
+from db.mongo import write_collection
 
 # ---------------------------------------------------------------------------
 # TradingView chart layout IDs
@@ -104,6 +105,14 @@ def write_json(entries: list[dict], path: str) -> None:
     print(f"Wrote {len(entries)} entries to {path}")
 
 
+def write_to_mongo(entries: list[dict], collection_name: str) -> None:
+    """Push *entries* to a MongoDB collection (clears old docs first)."""
+    try:
+        write_collection(collection_name, entries)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[MongoDB] Warning: failed to write to '{collection_name}': {exc}")
+
+
 def open_punit_chart(symbol: str) -> None:
     webbrowser.open_new_tab(build_url(PUNIT_CHART_ID, symbol, indian=True))
 
@@ -161,12 +170,14 @@ def main():
     if confirmed_entries:
         entries_to_write = confirmed_entries[: args.limit] if args.limit else confirmed_entries
         write_json(entries_to_write, args.output)
+        write_to_mongo(entries_to_write, MONGO_COLLECTION_BUY_CONFIRMED)
     else:
         print("No symbols found in 'confirmed_breakouts' — skipping buy_confirmed_watchlist.json.")
         entries_to_write = []
 
     if signal_entries:
         write_json(signal_entries, args.output_signal)
+        write_to_mongo(signal_entries, MONGO_COLLECTION_BUY_SIGNAL)
     else:
         print("No symbols found in 'buy_watch_list' — skipping buy_signal_watchlist.json.")
 

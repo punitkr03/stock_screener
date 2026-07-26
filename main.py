@@ -86,7 +86,8 @@ def cmd_run(args) -> None:
     import sys as _sys
     import os as _os
     _sys.path.insert(0, PROJECT)
-    from open_charts import get_entries, write_json, OUTPUT_CONFIRMED_JSON
+    from open_charts import get_entries, write_json, write_to_mongo, OUTPUT_CONFIRMED_JSON, OUTPUT_SIGNAL_JSON
+    from config import MONGO_COLLECTION_BUY_CONFIRMED, MONGO_COLLECTION_BUY_SIGNAL
 
     rc = _run("download_history.py", ["--recent"])
     if rc != 0:
@@ -109,11 +110,23 @@ def cmd_run(args) -> None:
     confirmed = get_entries("confirmed_breakouts")
     if confirmed:
         write_json(confirmed, OUTPUT_CONFIRMED_JSON)
+        write_to_mongo(confirmed, MONGO_COLLECTION_BUY_CONFIRMED)
         print(f"  buy_confirmed_watchlist : {len(confirmed)} symbols")
     else:
         print("  confirmed_breakouts is empty — buy_confirmed_watchlist.json not written.")
 
+    # Export buy signal watchlist — scanner.py has already updated buy_watch_list.
+    print("\nExporting buy_signal_watchlist.json …")
+    signals = get_entries("buy_watch_list")
+    if signals:
+        write_json(signals, OUTPUT_SIGNAL_JSON)
+        write_to_mongo(signals, MONGO_COLLECTION_BUY_SIGNAL)
+        print(f"  buy_signal_watchlist    : {len(signals)} symbols")
+    else:
+        print("  buy_watch_list is empty — buy_signal_watchlist.json not written.")
+
     sys.exit(0)
+
 
 
 
