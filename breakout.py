@@ -184,7 +184,12 @@ def check_next_day_breakout(
 ) -> tuple[date | None, float | None]:
     """
     Check whether the candle IMMEDIATELY after signal_date closes above
-    buy_ha_high (T+1 strict follow-through).
+    buy_ha_high (T+1 strict follow-through), AND that no SELL signal has
+    appeared anywhere between the buy signal and today (inclusive).
+
+    Even though this check anchors on T+1's price, a SELL anywhere in the
+    post-buy window means the trade thesis is invalidated — the historical
+    T+1 confirmation must not override a later reversal.
 
     Returns (confirmation_date, confirmed_ha_close) or (None, None).
     """
@@ -199,6 +204,13 @@ def check_next_day_breakout(
 
     next_row = ha_df.iloc[pos + 1]
     next_ha_close = float(next_row["HA_Close"])
+
+    # Discard if ANY candle after the buy signal carries a SELL — thesis reversed.
+    # This mirrors check_current_day_breakout and ensures a later SELL always
+    # wins, even when T+1 would otherwise qualify as a valid breakout.
+    window = ha_df.iloc[pos + 1:]
+    if SIGNAL_SELL in window["Signal"].values:
+        return None, None
 
     if next_ha_close > buy_ha_high:
         return next_row.name.date(), next_ha_close
