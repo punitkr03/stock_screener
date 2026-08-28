@@ -5,36 +5,44 @@ NSE UT Bot Scanner — CLI Entry Point
 =====================================
 
 Commands:
-    python main.py fetch-symbols    Download all listed NSE equities → DB + symbols.csv
-    python main.py download         Download OHLC history from yfinance → DB
-    python main.py scan             Run UT Bot scanner → signals DB + buy_signal_watchlist.json
-    python main.py breakout         Run breakout confirmation → confirmed_breakouts DB
-    python main.py export           Export buy_confirmed_watchlist.json & buy_signal_watchlist.json
-    python main.py run              Full daily pipeline:
-                                      download → scan (buy_signal_watchlist.json)
-                                      → breakout → export buy_confirmed_watchlist.json
+    python main.py fetch-symbols        Download all listed NSE equities → DB + symbols.csv
+    python main.py download             Download OHLC history from yfinance → DB
+    python main.py scan                 Run UT Bot scanner → signals DB + buy_signal_watchlist.json
+    python main.py breakout             Run breakout confirmation → confirmed_breakouts DB
+    python main.py export               Export buy_confirmed_watchlist.json & buy_signal_watchlist.json
+    python main.py analyze-indices      Analyze NSE indices, compute RRG / RS metrics → indices_data.json
+    python main.py download-indices     Download OHLC history for NSE indices from Upstox → DB
+    python main.py fetch-indices-master Fetch and extract Nifty index definitions from Upstox
+    python main.py schedule             Run 4 PM IST daily scheduler daemon or print crontab line
+    python main.py run                  Full daily stock pipeline (download → scan → breakout → export)
+    python main.py run-all              Full refresh pipeline (analyze-indices → run)
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
-import os
-from datetime import date, datetime
+from datetime import date
 
 PROJECT = os.path.dirname(os.path.abspath(__file__))
-PYTHON  = sys.executable
+if PROJECT not in sys.path:
+    sys.path.insert(0, PROJECT)
+
+PYTHON = sys.executable
 
 
-def _run(script: str, extra_args: list[str] | None = None) -> int:
-    cmd = [PYTHON, os.path.join(PROJECT, script)] + (extra_args or [])
-    result = subprocess.run(cmd, cwd=PROJECT)
+def _run(script_relpath: str, extra_args: list[str] | None = None) -> int:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = PROJECT + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+    cmd = [PYTHON, os.path.join(PROJECT, script_relpath)] + (extra_args or [])
+    result = subprocess.run(cmd, cwd=PROJECT, env=env)
     return result.returncode
 
 
 def cmd_fetch_symbols(_args) -> None:
-    sys.exit(_run("fetch_symbols.py"))
+    sys.exit(_run(os.path.join("fetchers", "symbols.py")))
 
 
 def cmd_download(args) -> None:
@@ -47,7 +55,7 @@ def cmd_download(args) -> None:
         extra.append("--recent")
     if getattr(args, "period", None):
         extra += ["--period", args.period]
-    sys.exit(_run("download_history.py", extra))
+    sys.exit(_run(os.path.join("fetchers", "historical_data.py"), extra))
 
 
 def cmd_scan(args) -> None:
@@ -58,7 +66,7 @@ def cmd_scan(args) -> None:
         extra += ["--symbol", args.symbol]
     if getattr(args, "days", None):
         extra += ["--days", str(args.days)]
-    sys.exit(_run("scanner.py", extra))
+    sys.exit(_run(os.path.join("scanners", "scanner.py"), extra))
 
 
 def cmd_breakout(args) -> None:
@@ -67,42 +75,85 @@ def cmd_breakout(args) -> None:
         extra += ["--symbol", args.symbol]
     if getattr(args, "dry_run", False):
         extra.append("--dry-run")
-    sys.exit(_run("breakout.py", extra))
+    sys.exit(_run(os.path.join("scanners", "breakout.py"), extra))
 
 
-def cmd_export(_args) -> None:
-    """Write buy_confirmed_watchlist.json and buy_signal_watchlist.json."""
-    sys.exit(_run("open_charts.py", ["--json-only"]))
+def cmd_export(args) -> None:
+    """Write buy_confirmed_watchlist.json and buy_signal_watchlist.json and optionally open charts."""
+    extra = []
+    if getattr(args, "json_only", False):
+        extra.append("--json-only")
+    if getattr(args, "batch_size", None):
+        extra += ["--batch-size", str(args.batch_size)]
+    if getattr(args, "limit", None):
+        extra += ["--limit", str(args.limit)]
+    if getattr(args, "no_prompt", False):
+        extra.append("--no-prompt")
+    sys.exit(_run(os.path.join("exporters", "open_charts.py"), extra))
 
 
-def cmd_run(args) -> None:
+def cmd_analyze_indices(args) -> None:
+    extra = []
+    if getattr(args, "no_refresh", False):
+        extra.append("--no-refresh")
+    if getattr(args, "benchmark", None):
+        extra += ["--benchmark", args.benchmark]
+    if getattr(args, "output", None):
+        extra += ["--output", args.output]
+    sys.exit(_run(os.path.join("scanners", "index_analyzer.py"), extra))
+
+
+def cmd_download_indices(args) -> None:
+    extra = []
+    if getattr(args, "test", False):
+        extra.append("--test")
+    sys.exit(_run(os.path.join("fetchers", "index_data.py"), extra))
+
+
+def cmd_fetch_indices_master(_args) -> None:
+    sys.exit(_run(os.path.join("fetchers", "index_master.py")))
+
+
+def cmd_schedule(args) -> None:
+    extra = []
+    if getattr(args, "cron", False):
+        extra.append("--cron")
+    if getattr(args, "run_now", False):
+        extra.append("--run-now")
+    sys.exit(_run(os.path.join("scheduler", "scheduler.py"), extra))
+
+
+def cmd_run(_args) -> None:
     """
-    Full daily pipeline (order matters):
+    Full daily stock pipeline (order matters):
       1. download  — fetch recent OHLC
       2. scan      — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
       3. breakout  — confirm breakouts, update confirmed_breakouts
       4. export    — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
     """
-    import sys as _sys
-    import os as _os
-    _sys.path.insert(0, PROJECT)
-    from open_charts import get_entries, write_json, write_to_mongo, OUTPUT_CONFIRMED_JSON, OUTPUT_SIGNAL_JSON
+    from exporters.open_charts import (
+        OUTPUT_CONFIRMED_JSON,
+        OUTPUT_SIGNAL_JSON,
+        get_entries,
+        write_json,
+        write_to_mongo,
+    )
     from config import MONGO_COLLECTION_BUY_CONFIRMED, MONGO_COLLECTION_BUY_SIGNAL
 
-    rc = _run("download_history.py", ["--recent"])
+    rc = _run(os.path.join("fetchers", "historical_data.py"), ["--recent"])
     if rc != 0:
-        print(f"[ERROR] download_history.py failed (exit {rc})")
+        print(f"[ERROR] historical_data fetcher failed (exit {rc})")
         sys.exit(rc)
 
     today = date.today().isoformat()
-    rc = _run("scanner.py", ["--date", today])
+    rc = _run(os.path.join("scanners", "scanner.py"), ["--date", today])
     if rc != 0:
-        print(f"[ERROR] scanner.py failed (exit {rc})")
+        print(f"[ERROR] scanner failed (exit {rc})")
         sys.exit(rc)
 
-    rc = _run("breakout.py")
+    rc = _run(os.path.join("scanners", "breakout.py"))
     if rc != 0:
-        print(f"[ERROR] breakout.py failed (exit {rc})")
+        print(f"[ERROR] breakout confirmation failed (exit {rc})")
         sys.exit(rc)
 
     # Export confirmed watchlist NOW — after breakout.py has refreshed confirmed_breakouts.
@@ -128,11 +179,18 @@ def cmd_run(args) -> None:
     sys.exit(0)
 
 
+def cmd_run_all(args) -> None:
+    """Full refresh pipeline: indices analysis + full stock pipeline."""
+    rc = _run(os.path.join("scanners", "index_analyzer.py"))
+    if rc != 0:
+        print(f"[ERROR] index analysis failed (exit {rc})")
+        sys.exit(rc)
+    cmd_run(args)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(
-        description="NSE UT Bot Scanner",
+        description="NSE UT Bot Scanner & Market Analysis Platform",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -193,23 +251,97 @@ def main() -> None:
     )
 
     # export
-    sub.add_parser(
+    exp_p = sub.add_parser(
         "export",
         help="Export buy_confirmed_watchlist.json and buy_signal_watchlist.json",
     )
+    exp_p.add_argument(
+        "--json-only",
+        action="store_true",
+        help="Only write JSON files, do not launch browser tabs",
+    )
+    exp_p.add_argument(
+        "--batch-size",
+        type=int,
+        default=5,
+        help="Number of tabs to open per batch (default: 5)",
+    )
+    exp_p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of symbols to open in browser",
+    )
+    exp_p.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="Open all charts without interactive batch prompts",
+    )
+
+    # analyze-indices
+    idx_p = sub.add_parser("analyze-indices", help="Analyze NSE indices (RRG & Relative Strength)")
+    idx_p.add_argument(
+        "--no-refresh",
+        action="store_true",
+        help="Skip recent candle download and analyze existing DB candles",
+    )
+    idx_p.add_argument(
+        "--benchmark",
+        type=str,
+        default=None,
+        help="Benchmark index symbol (default: NIFTY)",
+    )
+    idx_p.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output path for indices data JSON",
+    )
+
+    # download-indices
+    idx_dl_p = sub.add_parser("download-indices", help="Download 5-year OHLCV for all NSE indices")
+    idx_dl_p.add_argument(
+        "--test",
+        action="store_true",
+        help="Test run: process only the first index",
+    )
+
+    # fetch-indices-master
+    sub.add_parser("fetch-indices-master", help="Download and extract NSE index definitions master")
+
+    # schedule
+    sched_p = sub.add_parser("schedule", help="4 PM IST Daily Job Scheduler")
+    sched_p.add_argument(
+        "--cron",
+        action="store_true",
+        help="Print recommended crontab entry and exit",
+    )
+    sched_p.add_argument(
+        "--run-now",
+        action="store_true",
+        help="Run pipeline immediately and exit",
+    )
 
     # run
-    sub.add_parser("run", help="Full daily pipeline: download + scan + breakout + export")
+    sub.add_parser("run", help="Full daily stock pipeline: download + scan + breakout + export")
+
+    # run-all
+    sub.add_parser("run-all", help="Full market pipeline: analyze-indices + run daily stock pipeline")
 
     args = p.parse_args()
 
     dispatch = {
-        "fetch-symbols": cmd_fetch_symbols,
-        "download":      cmd_download,
-        "scan":          cmd_scan,
-        "breakout":      cmd_breakout,
-        "export":        cmd_export,
-        "run":           cmd_run,
+        "fetch-symbols":        cmd_fetch_symbols,
+        "download":             cmd_download,
+        "scan":                 cmd_scan,
+        "breakout":             cmd_breakout,
+        "export":               cmd_export,
+        "analyze-indices":      cmd_analyze_indices,
+        "download-indices":     cmd_download_indices,
+        "fetch-indices-master": cmd_fetch_indices_master,
+        "schedule":             cmd_schedule,
+        "run":                  cmd_run,
+        "run-all":              cmd_run_all,
     }
     dispatch[args.command](args)
 

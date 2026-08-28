@@ -20,12 +20,24 @@ JSON output structure per entry:
 import argparse
 import json
 import os
+import sys
 import urllib.parse
 import webbrowser
 import time
 from datetime import date
+
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 from sqlalchemy import create_engine, text
-from config import DATABASE_URL, MONGO_COLLECTION_BUY_CONFIRMED, MONGO_COLLECTION_BUY_SIGNAL
+from config import (
+    DATABASE_URL,
+    MONGO_COLLECTION_BUY_CONFIRMED,
+    MONGO_COLLECTION_BUY_SIGNAL,
+    BUY_CONFIRMED_JSON,
+    BUY_SIGNAL_JSON,
+)
 from db.mongo import write_collection
 
 # ---------------------------------------------------------------------------
@@ -35,8 +47,8 @@ from db.mongo import write_collection
 PUNIT_CHART_ID = "zMHJZH2k"   # https://in.tradingview.com/chart/zMHJZH2k/
 VIVEK_CHART_ID = "RdGFPK5y"   # https://www.tradingview.com/chart/RdGFPK5y/
 
-OUTPUT_CONFIRMED_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buy_confirmed_watchlist.json")
-OUTPUT_SIGNAL_JSON   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buy_signal_watchlist.json")
+OUTPUT_CONFIRMED_JSON = BUY_CONFIRMED_JSON
+OUTPUT_SIGNAL_JSON   = BUY_SIGNAL_JSON
 
 
 def get_engine():

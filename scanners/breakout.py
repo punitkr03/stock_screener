@@ -41,18 +41,19 @@ Usage:
     python breakout.py [--symbol SYMBOL] [--dry-run]
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os
 import sys
 from datetime import date
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-sys.path.insert(0, os.path.dirname(__file__))
 from config import DATABASE_URL, UT_BOT_ATR_PERIOD, UT_BOT_KEY_VALUE
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_SELL, compute_ut_bot

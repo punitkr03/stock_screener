@@ -23,16 +23,18 @@ Usage:
     python scheduler.py --run-now
 """
 
-from __future__ import annotations
+import os
+import sys
+
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 import argparse
 import logging
 import subprocess
-import sys
-import os
 from datetime import date, datetime, timezone, timedelta
 
-import schedule
 import time
 
 # ---------------------------------------------------------------------------
@@ -58,7 +60,9 @@ SCHEDULE_IST_MINUTE = 0
 SCHEDULE_UTC_HOUR   = 10
 SCHEDULE_UTC_MINUTE = 30
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+from config import BASE_DIR
+
+PROJECT_DIR = BASE_DIR
 PYTHON      = sys.executable
 
 
@@ -67,7 +71,7 @@ PYTHON      = sys.executable
 # ---------------------------------------------------------------------------
 
 def run_pipeline() -> None:
-    """Download latest candles then scan for signals."""
+    """Run the complete daily pipeline via main.py run."""
 
     now_ist = datetime.now(IST)
     today   = now_ist.date()
@@ -76,30 +80,13 @@ def run_pipeline() -> None:
     log.info("Pipeline starting at %s IST", now_ist.strftime("%Y-%m-%d %H:%M:%S"))
     log.info("═" * 55)
 
-    # Step 1: Download latest OHLC
-    log.info("Step 1 / 2 — Downloading latest OHLC data …")
     result = subprocess.run(
-        [PYTHON, os.path.join(PROJECT_DIR, "download_history.py")],
+        [PYTHON, os.path.join(PROJECT_DIR, "main.py"), "run"],
         capture_output=False,
         cwd=PROJECT_DIR,
     )
     if result.returncode != 0:
-        log.error("download_history.py exited with code %d", result.returncode)
-        return
-
-    # Step 2: Run scanner
-    log.info("Step 2 / 2 — Running UT Bot scanner …")
-    result = subprocess.run(
-        [
-            PYTHON,
-            os.path.join(PROJECT_DIR, "scanner.py"),
-            "--date", today.isoformat(),
-        ],
-        capture_output=False,
-        cwd=PROJECT_DIR,
-    )
-    if result.returncode != 0:
-        log.error("scanner.py exited with code %d", result.returncode)
+        log.error("Pipeline failed with exit code %d", result.returncode)
         return
 
     log.info("Pipeline complete for %s.", today)
@@ -111,7 +98,7 @@ def run_pipeline() -> None:
 
 CRON_LINE = (
     f"30 10 * * 1-5  cd {PROJECT_DIR} && "
-    f"{PYTHON} scheduler.py --run-now >> logs/scheduler.log 2>&1"
+    f"{PYTHON} main.py schedule --run-now >> logs/scheduler.log 2>&1"
 )
 
 
@@ -130,6 +117,11 @@ def print_cron() -> None:
 
 def run_daemon() -> None:
     """Run the scheduler as a long-lived process."""
+    try:
+        import schedule
+    except ImportError:
+        log.error("The 'schedule' package is required for daemon mode. Install it via: pip install schedule")
+        sys.exit(1)
 
     utc_time = f"{SCHEDULE_UTC_HOUR:02d}:{SCHEDULE_UTC_MINUTE:02d}"
 

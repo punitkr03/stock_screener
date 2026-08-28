@@ -12,10 +12,14 @@ Usage:
     python3 indices_download.py --test          # first index only
 """
 
-from __future__ import annotations
-
 import os
+import sys
 import time
+
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import argparse
 import json
 import requests
@@ -27,7 +31,7 @@ from sqlalchemy import create_engine, text
 
 from dotenv import load_dotenv
 
-from config import DATABASE_URL
+from config import DATABASE_URL, NIFTY_INDICES_JSON
 
 load_dotenv()
 
@@ -35,9 +39,9 @@ load_dotenv()
 # Config
 # ---------------------------------------------------------------------------
 
-AUTH_TOKEN = os.environ["UPSTOX_AUTH_TOKEN"]
+AUTH_TOKEN = os.getenv("UPSTOX_AUTH_TOKEN", "")
 
-INDICES_JSON = "nifty_indices.json"
+INDICES_JSON = NIFTY_INDICES_JSON
 
 TO_DATE = date.today()
 FROM_DATE = TO_DATE - timedelta(days=365 * 5)

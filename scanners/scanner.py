@@ -19,14 +19,16 @@ Usage:
     python scanner.py [--date YYYY-MM-DD] [--csv-only] [--no-db]
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os
 import sys
 from datetime import date, datetime
 from typing import Optional
+
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -35,17 +37,15 @@ from sqlalchemy import create_engine, text
 # Project-local imports
 # ---------------------------------------------------------------------------
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "indicators"))
-
 from config import (
     DATABASE_URL,
     UT_BOT_ATR_PERIOD,
     UT_BOT_KEY_VALUE,
+    SYMBOLS_CSV,
 )
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_BUY, SIGNAL_NONE, SIGNAL_SELL, compute_ut_bot
-from open_charts import (
+from exporters.open_charts import (
     get_entries,
     write_json,
     OUTPUT_SIGNAL_JSON,
@@ -91,7 +91,7 @@ def load_symbols_from_db(engine) -> list[str]:
         return []
 
 
-def load_symbols_from_csv(path: str = "symbols.csv") -> list[str]:
+def load_symbols_from_csv(path: str = SYMBOLS_CSV) -> list[str]:
     """Fallback: read symbols from CSV."""
 
     df = pd.read_csv(path)
@@ -400,7 +400,7 @@ def run_scan(
         # Load symbols
         symbols = load_symbols_from_db(engine) if use_db else []
         if not symbols:
-            csv_path = os.path.join(os.path.dirname(__file__), "symbols.csv")
+            csv_path = SYMBOLS_CSV
             symbols = load_symbols_from_csv(csv_path)
 
     log.info("Scanning %d symbols for %s (lookback: %d days) …", len(symbols), scan_date, days)

@@ -81,7 +81,7 @@ def _do_refresh() -> None:
     steps = [
         {
             "name": "analyze_indices",
-            "cmd": [PYTHON, str(PROJECT_ROOT / "analyze_indices.py")],
+            "cmd": [PYTHON, str(PROJECT_ROOT / "main.py"), "analyze-indices"],
         },
         {
             "name": "main_run",

@@ -16,12 +16,14 @@ import io
 import os
 import sys
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import pandas as pd
 import requests
 from sqlalchemy import create_engine, text
-from config import DATABASE_URL
-
-
+from config import DATABASE_URL, SYMBOLS_CSV
 
 # ---------------------------------------------------------------------------
 # NSE public endpoints for all listed equities
@@ -32,7 +34,7 @@ NSE_EQUITY_URLS = [
     "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
 ]
 
-OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "symbols.csv")
+OUTPUT_FILE = SYMBOLS_CSV
 
 HEADERS = {
     "User-Agent": (

@@ -1,23 +1,30 @@
-from __future__ import annotations
-
+import os
+import sys
 import time
+
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 import pandas as pd
 import yfinance as yf
 from sqlalchemy import create_engine, text
 
-from config import DATABASE_URL
-from config import DOWNLOAD_PERIOD
-from config import BATCH_SIZE
-from config import AUTO_ADJUST
+from config import (
+    DATABASE_URL,
+    DOWNLOAD_PERIOD,
+    BATCH_SIZE,
+    AUTO_ADJUST,
+    SYMBOLS_CSV,
+)
 
 
 engine = create_engine(DATABASE_URL)
 
 
-def read_symbols():
+def read_symbols(path: str = SYMBOLS_CSV):
 
-    df = pd.read_csv("symbols.csv")
+    df = pd.read_csv(path)
 
     return df
 

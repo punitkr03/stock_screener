@@ -1,7 +1,13 @@
 .venv
 .env
+__pycache__/
+*.pyc
+logs/
+data/symbols.csv
+data/*watchlist*.json
+data/indices_data.json
+data/nifty_indices.json
 symbols.csv
-__pycache__
 *watchlist*.json
 indices_data.json
 nifty_indices.json

@@ -22,26 +22,30 @@ Usage:
     python3 analyze_indices.py --output my_out.json
 """
 
-from __future__ import annotations
-
 import argparse
 import json
+import os
+import sys
 import time
 from datetime import date, timedelta
 from urllib.parse import quote
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import pandas as pd
 import requests
 from sqlalchemy import create_engine, text
-
-from config import DATABASE_URL, MONGO_COLLECTION_INDICES
+from config import DATABASE_URL, MONGO_COLLECTION_INDICES, NIFTY_INDICES_JSON, INDICES_DATA_JSON
 from db.mongo import write_collection
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-AUTH_TOKEN = (
+AUTH_TOKEN = os.getenv(
+    "UPSTOX_AUTH_TOKEN",
     "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ"
     ".eyJzdWIiOiI1WUNOR1IiLCJqdGkiOiI2YTUyNjU1NjIyNzQ0MzM3NWI4MjdjMDIi"
     "LCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbm"
@@ -50,8 +54,8 @@ AUTH_TOKEN = (
     ".ncmHhqx6Kbkw_kA21XI5I1Zj8-B7dhBoUDYNuiwo0Zo"
 )
 
-INDICES_JSON = "nifty_indices.json"
-OUTPUT_JSON = "indices_data.json"
+INDICES_JSON = NIFTY_INDICES_JSON
+OUTPUT_JSON = INDICES_DATA_JSON
 
 REFRESH_DAYS = 7       # calendar days to re-pull on each run
 DELAY_SECS = 0.1       # polite delay between API calls

@@ -1,13 +1,19 @@
 import gzip
 import json
 import os
+import sys
 from pathlib import Path
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 import requests
+from config import DATA_DIR, NIFTY_INDICES_JSON
 
 INSTRUMENT_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
-GZ_FILE = Path("NSE.json.gz")
-OUTPUT_FILE = Path("nifty_indices.json")
+GZ_FILE = Path(DATA_DIR) / "NSE.json.gz"
+OUTPUT_FILE = Path(NIFTY_INDICES_JSON)
 
 
 def download_file():
