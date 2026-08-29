@@ -60,7 +60,7 @@ OUTPUT_JSON = INDICES_DATA_JSON
 REFRESH_DAYS = 7       # calendar days to re-pull on each run
 DELAY_SECS = 0.1       # polite delay between API calls
 
-DEFAULT_BENCHMARK = "NIFTY"  # trading_symbol for Nifty 50 in nifty_indices.json / daily_candles
+DEFAULT_BENCHMARK = "NIFTY"
 
 # Trading-day look-back windows for returns
 LOOKBACKS: dict[str, int] = {
