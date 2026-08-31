@@ -9,6 +9,7 @@ Commands:
     python main.py download             Download OHLC history from yfinance → DB
     python main.py scan                 Run UT Bot scanner → signals DB + buy_signal_watchlist.json
     python main.py breakout             Run breakout confirmation → confirmed_breakouts DB
+    python main.py compute-metrics      Compute fundamental valuation & solvency metrics for confirmed breakouts
     python main.py export               Export buy_confirmed_watchlist.json & buy_signal_watchlist.json
     python main.py analyze-indices      Analyze NSE indices, compute RRG / RS metrics → indices_data.json
     python main.py download-indices     Download OHLC history for NSE indices from Upstox → DB
@@ -78,6 +79,17 @@ def cmd_breakout(args) -> None:
     sys.exit(_run(os.path.join("scanners", "breakout.py"), extra))
 
 
+def cmd_compute_metrics(args) -> None:
+    extra = []
+    if getattr(args, "symbol", None):
+        extra += ["--symbol", args.symbol]
+    if getattr(args, "force", False):
+        extra.append("--force")
+    if getattr(args, "dry_run", False):
+        extra.append("--dry-run")
+    sys.exit(_run(os.path.join("analytics", "processor.py"), extra))
+
+
 def cmd_export(args) -> None:
     """Write buy_confirmed_watchlist.json and buy_signal_watchlist.json and optionally open charts."""
     extra = []
@@ -126,10 +138,11 @@ def cmd_schedule(args) -> None:
 def cmd_run(_args) -> None:
     """
     Full daily stock pipeline (order matters):
-      1. download  — fetch recent OHLC
-      2. scan      — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
-      3. breakout  — confirm breakouts, update confirmed_breakouts
-      4. export    — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
+      1. download        — fetch recent OHLC
+      2. scan            — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
+      3. breakout        — confirm breakouts, update confirmed_breakouts
+      4. compute-metrics — compute valuation & solvency metrics for confirmed breakouts
+      5. export          — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
     """
     from exporters.open_charts import (
         OUTPUT_CONFIRMED_JSON,
@@ -154,6 +167,11 @@ def cmd_run(_args) -> None:
     rc = _run(os.path.join("scanners", "breakout.py"))
     if rc != 0:
         print(f"[ERROR] breakout confirmation failed (exit {rc})")
+        sys.exit(rc)
+
+    rc = _run(os.path.join("analytics", "processor.py"))
+    if rc != 0:
+        print(f"[ERROR] fundamental metrics calculation failed (exit {rc})")
         sys.exit(rc)
 
     # Export confirmed watchlist NOW — after breakout.py has refreshed confirmed_breakouts.
@@ -250,6 +268,24 @@ def main() -> None:
         help="Print results without writing to DB",
     )
 
+    # compute-metrics
+    cm_p = sub.add_parser("compute-metrics", help="Compute fundamental valuation & solvency metrics for confirmed breakouts")
+    cm_p.add_argument(
+        "--symbol",
+        type=str,
+        help="Compute metrics for a single specified symbol (e.g., RELIANCE)",
+    )
+    cm_p.add_argument(
+        "--force",
+        action="store_true",
+        help="Force recalculation even if metrics_data already exists",
+    )
+    cm_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print results without writing to DB",
+    )
+
     # export
     exp_p = sub.add_parser(
         "export",
@@ -335,6 +371,7 @@ def main() -> None:
         "download":             cmd_download,
         "scan":                 cmd_scan,
         "breakout":             cmd_breakout,
+        "compute-metrics":      cmd_compute_metrics,
         "export":               cmd_export,
         "analyze-indices":      cmd_analyze_indices,
         "download-indices":     cmd_download_indices,

@@ -45,6 +45,13 @@ short-term-trading/
 │   ├── heikin_ashi.py             # Heikin Ashi candle calculation
 │   └── ut_bot.py                  # UT Bot (Wilder's ATR Trailing Stop + EMA signal line)
 │
+├── analytics/                     # Fundamentals & valuation metrics engine
+│   ├── __init__.py
+│   ├── isin_resolver.py           # NSE Symbol to ISIN resolution (Upstox/NSE/yfinance)
+│   ├── fetcher.py                 # Upstox Key Ratios & Yahoo Finance data connectors
+│   ├── engine.py                  # EPS, PE, Fair Price, PS, Interest Coverage, & Sector comparison
+│   └── processor.py               # Batch processor & DB updater for confirmed breakouts
+│
 ├── scanners/                      # Screening, signal detection & market analysis
 │   ├── __init__.py
 │   ├── scanner.py                 # Daily UT Bot scanner (persists signals to DB & watchlists)
@@ -129,6 +136,12 @@ Run commands from the repository root using `python main.py <command> [options]`
   *Options*:  
   - `--symbol RELIANCE`: Test a single symbol.  
   - `--dry-run`: Display results without database commits.
+- **`python main.py compute-metrics`**  
+  Calculates valuation and solvency metrics (EPS, PE, Fair Price, PS, Interest Coverage, Sector comparisons) for confirmed breakout stocks.  
+  *Options*:  
+  - `--symbol RELIANCE`: Compute metrics for a single symbol.  
+  - `--force`: Force recalculation even if metrics_data exists.  
+  - `--dry-run`: Display computed metrics without updating the DB.
 - **`python main.py analyze-indices`**  
   Refreshes index candles, computes Relative Rotation Graph (RRG) metrics (RS-Ratio, RS-Momentum, quadrant classification), and outputs `data/indices_data.json` & MongoDB.  
   *Options*:  
@@ -147,7 +160,7 @@ Run commands from the repository root using `python main.py <command> [options]`
 ### Pipeline & Automation Commands
 - **`python main.py run`**  
   Executes the full end-to-end stock pipeline in sequential order:  
-  `download (--recent)` ➔ `scan` ➔ `breakout` ➔ `export`
+  `download (--recent)` ➔ `scan` ➔ `breakout` ➔ `compute-metrics` ➔ `export`
 - **`python main.py run-all`**  
   Executes the entire market refresh: `analyze-indices` ➔ `run`
 - **`python main.py schedule`**  
@@ -166,7 +179,8 @@ flowchart TD
     B --> C[download --recent\nYahoo Finance ➔ daily_candles]
     C --> D[scan\nHeikin Ashi + UT Bot ➔ buy_watch_list]
     D --> E[breakout\nBreakout Check ➔ confirmed_breakouts]
-    E --> F[export\nWrite JSONs ➔ Sync MongoDB ➔ Open TradingView]
+    E --> F[compute-metrics\nUpstox + yfinance ➔ metrics_data JSON]
+    F --> G[export\nWrite JSONs ➔ Sync MongoDB ➔ Open TradingView]
 ```
 
 ---

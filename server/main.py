@@ -1,9 +1,9 @@
 """
 server/main.py
 
-FastAPI server exposing a /refresh endpoint that triggers the daily data pipeline:
-  1. python3 analyze_indices.py
-  2. python3 main.py run
+FastAPI server exposing a /refresh endpoint that triggers the complete end-to-end pipeline:
+  1. analyze-indices (RRG & Sector momentum)
+  2. run (download -> scan -> breakout -> compute-metrics -> export)
 """
 
 from __future__ import annotations
@@ -148,8 +148,8 @@ def root():
 def trigger_refresh(background_tasks: BackgroundTasks):
     """
     Trigger the daily data refresh pipeline:
-      1. python3 analyze_indices.py
-      2. python3 main.py run
+      1. python3 main.py analyze-indices
+      2. python3 main.py run (download -> scan -> breakout -> compute-metrics -> export)
 
     The pipeline runs in the background. Poll /refresh/status to track progress.
     """

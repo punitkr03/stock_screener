@@ -62,3 +62,37 @@ AUTO_ADJUST     = False    # keep raw OHLC (splits/divs not adjusted)
 
 UT_BOT_ATR_PERIOD = 55   # ATR look-back period
 UT_BOT_KEY_VALUE  = 1.0  # sensitivity multiplier
+
+# ---------------------------------------------------------------------------
+# Upstox API
+# ---------------------------------------------------------------------------
+
+UPSTOX_AUTH_TOKEN = os.getenv("UPSTOX_AUTH_TOKEN", "")
+
+# ---------------------------------------------------------------------------
+# Index symbols helper
+# ---------------------------------------------------------------------------
+
+
+def load_index_symbols() -> set[str]:
+    """
+    Load all index symbols and trading symbols from nifty_indices.json.
+    Returns a set of normalized uppercase symbols (e.g. {'NIFTY 50', 'BANKNIFTY', ...}).
+    """
+    symbols = set()
+    if os.path.exists(NIFTY_INDICES_JSON):
+        try:
+            import json
+            with open(NIFTY_INDICES_JSON, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for item in data:
+                    if isinstance(item, dict):
+                        ts = item.get("trading_symbol")
+                        name = item.get("name")
+                        if ts:
+                            symbols.add(ts.strip().upper())
+                        if name:
+                            symbols.add(name.strip().upper())
+        except Exception:
+            pass
+    return symbols

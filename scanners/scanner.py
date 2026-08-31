@@ -42,6 +42,7 @@ from config import (
     UT_BOT_ATR_PERIOD,
     UT_BOT_KEY_VALUE,
     SYMBOLS_CSV,
+    load_index_symbols,
 )
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_BUY, SIGNAL_NONE, SIGNAL_SELL, compute_ut_bot
@@ -78,24 +79,26 @@ def get_engine():
 
 
 def load_symbols_from_db(engine) -> list[str]:
-    """Return list of active symbols from the stocks table."""
-
+    """Return list of active equity symbols from the stocks table (excluding indices)."""
+    index_symbols = load_index_symbols()
     try:
         with engine.connect() as conn:
             rows = conn.execute(
-                text("SELECT symbol FROM stocks WHERE is_active = TRUE ORDER BY symbol")
+                text("SELECT symbol FROM stocks WHERE is_active = TRUE AND exchange = 'NSE' ORDER BY symbol")
             ).fetchall()
-        return [r[0] for r in rows]
+        symbols = [r[0] for r in rows if r[0].strip().upper() not in index_symbols]
+        return symbols
     except Exception as exc:  # noqa: BLE001
         log.warning("Could not load symbols from DB: %s. Falling back to CSV.", exc)
         return []
 
 
 def load_symbols_from_csv(path: str = SYMBOLS_CSV) -> list[str]:
-    """Fallback: read symbols from CSV."""
-
+    """Fallback: read symbols from CSV (excluding indices)."""
+    index_symbols = load_index_symbols()
     df = pd.read_csv(path)
-    return df["SYMBOL"].str.strip().tolist()
+    symbols = [s.strip() for s in df["SYMBOL"].dropna().tolist() if s.strip().upper() not in index_symbols]
+    return symbols
 
 
 def load_ohlc_from_db(engine, symbol: str) -> pd.DataFrame:

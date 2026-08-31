@@ -54,7 +54,7 @@ if _ROOT not in sys.path:
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from config import DATABASE_URL, UT_BOT_ATR_PERIOD, UT_BOT_KEY_VALUE
+from config import DATABASE_URL, UT_BOT_ATR_PERIOD, UT_BOT_KEY_VALUE, load_index_symbols
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_SELL, compute_ut_bot
 
@@ -87,41 +87,49 @@ def get_engine():
 
 def load_latest_buy_signals(conn, symbol: str | None = None) -> list[dict]:
     """
-    Return the most recent BUY signal per symbol from buy_watch_list.
+    Return the most recent BUY signal per symbol from buy_watch_list (excluding indices).
     One row per symbol (the latest signal_date wins).
     """
+    index_symbols = load_index_symbols()
+
     if symbol:
+        clean_sym = symbol.strip().upper().replace(".NS", "")
+        if clean_sym in index_symbols:
+            return []
         rows = conn.execute(
             text("""
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    signal_date  AS buy_signal_date,
-                    ha_open,
-                    ha_high,
-                    ha_low,
-                    ha_close
-                FROM buy_watch_list
-                WHERE symbol = :sym
-                ORDER BY symbol, signal_date DESC
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol,
+                    b.signal_date  AS buy_signal_date,
+                    b.ha_open,
+                    b.ha_high,
+                    b.ha_low,
+                    b.ha_close
+                FROM buy_watch_list b
+                LEFT JOIN stocks s ON s.symbol = b.symbol
+                WHERE b.symbol = :sym AND (s.exchange IS NULL OR s.exchange = 'NSE')
+                ORDER BY b.symbol, b.signal_date DESC
             """),
-            {"sym": symbol.strip().upper().replace(".NS", "")},
+            {"sym": clean_sym},
         ).fetchall()
     else:
         rows = conn.execute(
             text("""
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    signal_date  AS buy_signal_date,
-                    ha_open,
-                    ha_high,
-                    ha_low,
-                    ha_close
-                FROM buy_watch_list
-                ORDER BY symbol, signal_date DESC
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol,
+                    b.signal_date  AS buy_signal_date,
+                    b.ha_open,
+                    b.ha_high,
+                    b.ha_low,
+                    b.ha_close
+                FROM buy_watch_list b
+                LEFT JOIN stocks s ON s.symbol = b.symbol
+                WHERE (s.exchange IS NULL OR s.exchange = 'NSE')
+                ORDER BY b.symbol, b.signal_date DESC
             """)
         ).fetchall()
 
-    return [dict(r._mapping) for r in rows]
+    return [dict(r._mapping) for r in rows if r._mapping["symbol"].strip().upper() not in index_symbols]
 
 
 def load_ha_dataframe(conn, symbol: str) -> pd.DataFrame:

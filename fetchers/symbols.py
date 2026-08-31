@@ -81,6 +81,8 @@ def normalise(df: pd.DataFrame) -> pd.DataFrame:
             col_map[col] = "SYMBOL"
         elif upper in ("COMPANY NAME", "NAME", "COMPANYNAME", "SECURITY NAME", "NAME OF COMPANY"):
             col_map[col] = "NAME"
+        elif upper in ("ISIN NUMBER", "ISIN", "ISIN_NUMBER"):
+            col_map[col] = "ISIN"
 
     df = df.rename(columns=col_map)
 
@@ -90,12 +92,17 @@ def normalise(df: pd.DataFrame) -> pd.DataFrame:
     if "NAME" not in df.columns:
         df["NAME"] = df["SYMBOL"]
 
+    if "ISIN" not in df.columns:
+        df["ISIN"] = ""
+
     df["SECTOR"] = ""  # Full equity list doesn't provide sector mappings
 
     df["SYMBOL"] = df["SYMBOL"].str.strip()
     df["NAME"]   = df["NAME"].str.strip()
+    df["ISIN"]   = df["ISIN"].astype(str).str.strip()
 
-    return df[["SYMBOL", "NAME", "SECTOR"]].drop_duplicates(subset="SYMBOL")
+    cols = ["SYMBOL", "NAME", "SECTOR", "ISIN"]
+    return df[cols].drop_duplicates(subset="SYMBOL")
 
 
 def store_symbols_to_db(df: pd.DataFrame) -> None:

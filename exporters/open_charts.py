@@ -37,6 +37,7 @@ from config import (
     MONGO_COLLECTION_BUY_SIGNAL,
     BUY_CONFIRMED_JSON,
     BUY_SIGNAL_JSON,
+    load_index_symbols,
 )
 from db.mongo import write_collection
 
@@ -64,41 +65,84 @@ def build_url(chart_id: str, symbol: str, indian: bool = False) -> str:
 
 def get_entries(table_name: str = "confirmed_breakouts") -> list[dict]:
     """
-    Fetch symbol + signal_date from the specified table.
+    Fetch symbol + signal_date (and metrics_data if present) from the specified table (excluding indices).
     Returns a list of dicts ready for JSON serialisation.
     """
     engine = get_engine()
-
-    if table_name == "confirmed_breakouts":
-        query = """
-            SELECT symbol, signal_date
-            FROM confirmed_breakouts
-            ORDER BY signal_date DESC, symbol;
-        """
-    else:
-        # DISTINCT ON needs ORDER BY symbol first to pick the latest signal_date per symbol,
-        # then we wrap in a subquery to re-sort by signal_date DESC for the final output.
-        query = """
-            SELECT symbol, signal_date FROM (
-                SELECT DISTINCT ON (symbol) symbol, signal_date
-                FROM buy_watch_list
-                ORDER BY symbol, signal_date DESC
-            ) sub
-            ORDER BY signal_date DESC, symbol;
-        """
+    index_symbols = load_index_symbols()
 
     with engine.connect() as conn:
-        rows = conn.execute(text(query)).fetchall()
+        if table_name == "confirmed_breakouts":
+            has_metrics = conn.execute(
+                text("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'confirmed_breakouts' AND column_name = 'metrics_data'
+                """)
+            ).fetchone() is not None
+
+            if has_metrics:
+                query = """
+                    SELECT c.symbol, c.signal_date, c.metrics_data
+                    FROM confirmed_breakouts c
+                    LEFT JOIN stocks s ON s.symbol = c.symbol
+                    WHERE (s.exchange IS NULL OR s.exchange = 'NSE')
+                    ORDER BY c.signal_date DESC, c.symbol;
+                """
+                rows = conn.execute(text(query)).fetchall()
+                entries = []
+                idx = 1
+                for row in rows:
+                    sym = row[0]
+                    if sym.strip().upper() in index_symbols:
+                        continue
+                    sig_date = row[1]
+                    raw_metrics = row[2]
+                    sig_date_str = sig_date.isoformat() if isinstance(sig_date, date) else (str(sig_date) if sig_date else None)
+
+                    item = {
+                        "id":          idx,
+                        "symbol":      sym,
+                        "punit_link":  build_url(PUNIT_CHART_ID, sym, indian=True),
+                        "vivek_link":  build_url(VIVEK_CHART_ID, sym, indian=False),
+                        "signal_date": sig_date_str,
+                    }
+                    if raw_metrics:
+                        item["metrics_data"] = raw_metrics if isinstance(raw_metrics, dict) else json.loads(raw_metrics)
+                    entries.append(item)
+                    idx += 1
+                return entries
+            else:
+                query = """
+                    SELECT c.symbol, c.signal_date
+                    FROM confirmed_breakouts c
+                    LEFT JOIN stocks s ON s.symbol = c.symbol
+                    WHERE (s.exchange IS NULL OR s.exchange = 'NSE')
+                    ORDER BY c.signal_date DESC, c.symbol;
+                """
+                rows = conn.execute(text(query)).fetchall()
+        else:
+            # DISTINCT ON needs ORDER BY symbol first to pick the latest signal_date per symbol,
+            # then we wrap in a subquery to re-sort by signal_date DESC for the final output.
+            query = """
+                SELECT symbol, signal_date FROM (
+                    SELECT DISTINCT ON (b.symbol) b.symbol, b.signal_date
+                    FROM buy_watch_list b
+                    LEFT JOIN stocks s ON s.symbol = b.symbol
+                    WHERE (s.exchange IS NULL OR s.exchange = 'NSE')
+                    ORDER BY b.symbol, b.signal_date DESC
+                ) sub
+                ORDER BY signal_date DESC, symbol;
+            """
+            rows = conn.execute(text(query)).fetchall()
 
     entries = []
-    for idx, row in enumerate(rows, start=1):
+    idx = 1
+    for row in rows:
         sym = row[0]
+        if sym.strip().upper() in index_symbols:
+            continue
         sig_date = row[1]
-        # sig_date may be a date object or a string
-        if isinstance(sig_date, date):
-            sig_date_str = sig_date.isoformat()
-        else:
-            sig_date_str = str(sig_date) if sig_date else None
+        sig_date_str = sig_date.isoformat() if isinstance(sig_date, date) else (str(sig_date) if sig_date else None)
 
         entries.append({
             "id":          idx,
@@ -107,6 +151,7 @@ def get_entries(table_name: str = "confirmed_breakouts") -> list[dict]:
             "vivek_link":  build_url(VIVEK_CHART_ID, sym, indian=False),
             "signal_date": sig_date_str,
         })
+        idx += 1
 
     return entries
 

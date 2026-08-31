@@ -14,8 +14,13 @@ Interactive docs available at `http://localhost:8000/docs`.
 
 ## Pipeline steps (in order)
 
-1. `python3 analyze_indices.py`
-2. `python3 main.py run`
+1. `python3 main.py analyze-indices` (RRG sector/index metrics)
+2. `python3 main.py run` (End-to-end stock pipeline):
+   - Ingestion (`download --recent`)
+   - Screening (`scan`)
+   - Breakout confirmation (`breakout`)
+   - Fundamental & solvency analytics (`compute-metrics` via `analytics/processor.py`)
+   - Export (`export` → JSON watchlists & MongoDB sync)
 
 ## Setup & run
 
