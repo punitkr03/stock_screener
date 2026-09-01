@@ -136,6 +136,38 @@ class StatusResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Crude Oil State Tracking
+# ---------------------------------------------------------------------------
+crude_status: dict[str, Any] = {
+    "running": False,
+    "last_run": None,
+    "last_status": None,
+    "last_error": None,
+}
+
+
+def _do_crude_refresh(init: bool = False, days: int = 30) -> None:
+    """Run crude oil strategy refresh or init in the background."""
+    crude_status["running"] = True
+    crude_status["last_run"] = datetime.now().isoformat()
+    crude_status["last_status"] = None
+    crude_status["last_error"] = None
+
+    try:
+        from crude_oil import init_crude_oil_data, update_crude_oil_data
+        if init:
+            init_crude_oil_data(days=days)
+        else:
+            update_crude_oil_data(recent_days=3)
+        crude_status["last_status"] = "success"
+    except Exception as exc:
+        crude_status["last_status"] = "error"
+        crude_status["last_error"] = str(exc)
+    finally:
+        crude_status["running"] = False
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 @app.get("/", tags=["Health"])
@@ -174,3 +206,60 @@ def get_refresh_status():
     Get the current status of the refresh pipeline.
     """
     return StatusResponse(**refresh_status)
+
+
+# ---------------------------------------------------------------------------
+# Crude Oil Routes
+# ---------------------------------------------------------------------------
+@app.get("/crude-oil/status", tags=["Crude Oil"])
+def get_crude_status_endpoint(limit: int = 10):
+    """
+    Return the latest strategy state, signals, PCR, and breakout status for Crude Oil Mini from DB.
+    By default returns the last 10 candles (or pass limit=12 for the last 1 hour of 5m candles).
+    """
+    try:
+        from crude_oil import get_crude_oil_status
+        return get_crude_oil_status(limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load crude oil status: {exc}")
+
+
+
+@app.post("/crude-oil/refresh", tags=["Crude Oil"])
+def trigger_crude_refresh(background_tasks: BackgroundTasks):
+    """
+    Trigger an incremental refresh for Crude Oil Mini (fetches latest 5m candles, recomputes HA, UT Bot, Breakouts, and live PCR).
+    """
+    if crude_status["running"]:
+        raise HTTPException(
+            status_code=409,
+            detail="A crude oil refresh is already running.",
+        )
+
+    started_at = datetime.now().isoformat()
+    background_tasks.add_task(_do_crude_refresh, init=False)
+
+    return {
+        "message": "Crude oil refresh started in background.",
+        "started_at": started_at,
+    }
+
+
+@app.post("/crude-oil/init", tags=["Crude Oil"])
+def trigger_crude_init(background_tasks: BackgroundTasks, days: int = 30):
+    """
+    Initialize historical 5-minute candles (default 30 days / 1 month) for Crude Oil Mini.
+    """
+    if crude_status["running"]:
+        raise HTTPException(
+            status_code=409,
+            detail="A crude oil operation is already running.",
+        )
+
+    started_at = datetime.now().isoformat()
+    background_tasks.add_task(_do_crude_refresh, init=True, days=days)
+
+    return {
+        "message": f"Crude oil initialization for {days} days started in background.",
+        "started_at": started_at,
+    }

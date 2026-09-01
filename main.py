@@ -203,7 +203,45 @@ def cmd_run_all(args) -> None:
     if rc != 0:
         print(f"[ERROR] index analysis failed (exit {rc})")
         sys.exit(rc)
-    cmd_run(args)
+def cmd_crude_oil(args) -> None:
+    """Run Crude Oil Mini strategy initialization, update, live polling, or status."""
+    from crude_oil import get_crude_oil_status, init_crude_oil_data, update_crude_oil_data
+
+    if getattr(args, "status", False):
+        import json
+        print(json.dumps(get_crude_oil_status(), indent=2))
+        return
+
+    if getattr(args, "live", False):
+        from crude_oil.daemon import run_poller
+        interval = getattr(args, "interval", 60) or 60
+        days = getattr(args, "days", 30) or 30
+        run_poller(interval_seconds=interval, bootstrap_days=days)
+        return
+
+    if getattr(args, "update", False):
+        print("Running Crude Oil incremental update...")
+        status = update_crude_oil_data(recent_days=3)
+    else:
+        days = getattr(args, "days", 30) or 30
+        print(f"Running Crude Oil initialization for {days} days...")
+        status = init_crude_oil_data(days=days)
+
+    print("\n=== Crude Oil Mini Strategy Status ===")
+    print(f"Symbol:               {status.get('symbol')}")
+    print(f"Total Candles Stored: {status.get('total_candles')}")
+    print(f"Current Signal:       {status.get('current_signal')}")
+    print(f"Buy Confirmed:        {status.get('buy_confirmed')}")
+    print(f"Put-Call Ratio (PCR): {status.get('pcr')}")
+    print(f"Open Interest:        {status.get('open_interest')}")
+
+
+
+def cmd_crude_oil_status(args) -> None:
+    """Print latest Crude Oil Mini signal status from DB."""
+    import json
+    from crude_oil import get_crude_oil_status
+    print(json.dumps(get_crude_oil_status(), indent=2))
 
 
 def main() -> None:
@@ -358,6 +396,44 @@ def main() -> None:
         help="Run pipeline immediately and exit",
     )
 
+    # crude-oil
+    co_p = sub.add_parser("crude-oil", help="Crude Oil Mini 5m Heikin Ashi + UT Bot + Breakout strategy")
+    co_p.add_argument(
+        "--init",
+        action="store_true",
+        help="Initialize 1 month (30 days) of 5-minute candles and compute strategy",
+    )
+    co_p.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of historical days to fetch for initialization (default: 30)",
+    )
+    co_p.add_argument(
+        "--update",
+        action="store_true",
+        help="Perform incremental update with recent candles",
+    )
+    co_p.add_argument(
+        "--live",
+        action="store_true",
+        help="Run continuous live polling daemon looking for new data every minute",
+    )
+    co_p.add_argument(
+        "--interval",
+        type=int,
+        default=60,
+        help="Polling interval in seconds for live mode (default: 60)",
+    )
+    co_p.add_argument(
+        "--status",
+        action="store_true",
+        help="Show latest strategy and breakout status from DB",
+    )
+
+    # crude-oil-status
+    sub.add_parser("crude-oil-status", help="Show latest Crude Oil Mini signal, PCR, and breakout status")
+
     # run
     sub.add_parser("run", help="Full daily stock pipeline: download + scan + breakout + export")
 
@@ -376,6 +452,8 @@ def main() -> None:
         "analyze-indices":      cmd_analyze_indices,
         "download-indices":     cmd_download_indices,
         "fetch-indices-master": cmd_fetch_indices_master,
+        "crude-oil":            cmd_crude_oil,
+        "crude-oil-status":     cmd_crude_oil_status,
         "schedule":             cmd_schedule,
         "run":                  cmd_run,
         "run-all":              cmd_run_all,

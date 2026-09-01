@@ -228,6 +228,37 @@ JOIN stocks s ON s.symbol = c.symbol
 ORDER BY c.confirmation_date DESC, c.symbol;
 
 -- ============================================================================
+-- CRUDE OIL MINI (5-MIN CANDLES + STRATEGY + OI + PCR)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS crude_oil_data (
+    timestamp               TIMESTAMPTZ PRIMARY KEY,
+    symbol                  TEXT NOT NULL DEFAULT 'CRUDEOILM',
+    instrument_key          TEXT NOT NULL,
+    open                    DOUBLE PRECISION NOT NULL,
+    high                    DOUBLE PRECISION NOT NULL,
+    low                     DOUBLE PRECISION NOT NULL,
+    close                   DOUBLE PRECISION NOT NULL,
+    volume                  BIGINT NOT NULL,
+    open_interest           BIGINT NOT NULL DEFAULT 0,
+    pcr                     DOUBLE PRECISION,
+    ha_open                 DOUBLE PRECISION,
+    ha_high                 DOUBLE PRECISION,
+    ha_low                  DOUBLE PRECISION,
+    ha_close                DOUBLE PRECISION,
+    atr                     DOUBLE PRECISION,
+    trailing_stop           DOUBLE PRECISION,
+    signal                  TEXT NOT NULL DEFAULT 'NONE',  -- 'BUY', 'SELL', 'NONE'
+    buy_confirmed           BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crude_oil_timestamp ON crude_oil_data(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_crude_oil_signal ON crude_oil_data(signal);
+CREATE INDEX IF NOT EXISTS idx_crude_oil_confirmed ON crude_oil_data(buy_confirmed);
+
+-- ============================================================================
 -- MIGRATION (run on existing databases — safe to ignore on fresh installs)
 -- ============================================================================
 --
