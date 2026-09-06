@@ -36,7 +36,7 @@ def get_db_engine():
 
 
 def init_db(engine=None) -> None:
-    """Create crude_oil_data table and indexes if not exists."""
+    """Create crude_oil_data and crude_oil_pcr_data tables and indexes if not exists."""
     eng = engine or get_db_engine()
     create_sql = """
     CREATE TABLE IF NOT EXISTS crude_oil_data (
@@ -69,10 +69,22 @@ def init_db(engine=None) -> None:
     CREATE INDEX IF NOT EXISTS idx_crude_oil_signal ON crude_oil_data(signal);
     CREATE INDEX IF NOT EXISTS idx_crude_oil_confirmed ON crude_oil_data(buy_confirmed);
     CREATE INDEX IF NOT EXISTS idx_crude_oil_sell_confirmed ON crude_oil_data(sell_confirmed);
+
+    CREATE TABLE IF NOT EXISTS crude_oil_pcr_data (
+        timestamp               TIMESTAMPTZ PRIMARY KEY,
+        symbol                  TEXT NOT NULL DEFAULT 'CRUDEOILM',
+        instrument_key          TEXT NOT NULL,
+        pcr                     DOUBLE PRECISION NOT NULL,
+        pe_oi                   DOUBLE PRECISION NOT NULL DEFAULT 0,
+        ce_oi                   DOUBLE PRECISION NOT NULL DEFAULT 0,
+        created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_crude_oil_pcr_timestamp ON crude_oil_pcr_data(timestamp DESC);
     """
     with eng.begin() as conn:
         conn.execute(text(create_sql))
-    log.info("crude_oil_data table initialized.")
+    log.info("crude_oil_data and crude_oil_pcr_data tables initialized.")
 
 
 def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
@@ -172,10 +184,122 @@ def load_candles_from_db(limit: Optional[int] = None, engine=None) -> pd.DataFra
     return df
 
 
+def get_latest_candle_timestamp(engine=None) -> Optional[datetime]:
+    """Return the timestamp of the latest candle stored in crude_oil_data table (UTC)."""
+    eng = engine or get_db_engine()
+    with eng.connect() as conn:
+        res = conn.execute(text("SELECT MAX(timestamp) FROM crude_oil_data")).scalar()
+        if res is not None:
+            if res.tzinfo is None:
+                res = res.replace(tzinfo=timezone.utc)
+            else:
+                res = res.astimezone(timezone.utc)
+        return res
 
-def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
+
+
+def save_pcr_record_to_db(record: Dict[str, Any], engine=None) -> bool:
     """
-    Query the last N candles along with PCR, start time, end time, and strategy flags.
+    Save or upsert a single Put-Call Ratio (PCR) record into crude_oil_pcr_data table.
+    Record structure:
+        {
+            "timestamp": datetime or ISO string,
+            "symbol": str,
+            "instrument_key": str,
+            "pcr": float,
+            "pe_oi": float,
+            "ce_oi": float,
+        }
+    """
+    if not record or record.get("pcr") is None:
+        return False
+
+    init_db(engine)
+    eng = engine or get_db_engine()
+
+    ts = record.get("timestamp")
+    if isinstance(ts, str):
+        ts = datetime.fromisoformat(ts)
+    elif ts is None:
+        ts = datetime.now(timezone.utc)
+    elif hasattr(ts, "to_pydatetime"):
+        ts = ts.to_pydatetime()
+
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    else:
+        ts = ts.astimezone(timezone.utc)
+
+    upsert_sql = """
+    INSERT INTO crude_oil_pcr_data (
+        timestamp, symbol, instrument_key, pcr, pe_oi, ce_oi, created_at
+    ) VALUES (
+        :timestamp, :symbol, :instrument_key, :pcr, :pe_oi, :ce_oi, NOW()
+    )
+    ON CONFLICT (timestamp) DO UPDATE SET
+        symbol         = EXCLUDED.symbol,
+        instrument_key = EXCLUDED.instrument_key,
+        pcr            = EXCLUDED.pcr,
+        pe_oi          = EXCLUDED.pe_oi,
+        ce_oi          = EXCLUDED.ce_oi;
+    """
+
+    params = {
+        "timestamp": ts,
+        "symbol": str(record.get("symbol", "CRUDEOILM")),
+        "instrument_key": str(record.get("instrument_key", "")),
+        "pcr": float(record["pcr"]),
+        "pe_oi": float(record.get("pe_oi", 0) or 0),
+        "ce_oi": float(record.get("ce_oi", 0) or 0),
+    }
+
+    with eng.begin() as conn:
+        conn.execute(text(upsert_sql), params)
+
+    log.info("Saved PCR record at %s (PCR: %s, PE OI: %s, CE OI: %s) to DB.", ts.isoformat(), record["pcr"], record.get("pe_oi"), record.get("ce_oi"))
+    return True
+
+
+def load_pcr_history_from_db(limit: int = 50, engine=None) -> List[Dict[str, Any]]:
+    """
+    Load recent PCR history records sorted descending (latest first).
+    """
+    init_db(engine)
+    eng = engine or get_db_engine()
+
+    query = f"""
+    SELECT timestamp, symbol, instrument_key, pcr, pe_oi, ce_oi
+    FROM crude_oil_pcr_data
+    ORDER BY timestamp DESC
+    LIMIT {int(limit)}
+    """
+
+    with eng.connect() as conn:
+        rows = conn.execute(text(query)).fetchall()
+
+    results = []
+    for r in rows:
+        d = dict(r._mapping)
+        ts = d.get("timestamp")
+        if ts:
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            else:
+                ts = ts.astimezone(timezone.utc)
+        results.append({
+            "timestamp": ts.isoformat() if ts else None,
+            "symbol": d.get("symbol"),
+            "instrument_key": d.get("instrument_key"),
+            "pcr": d.get("pcr"),
+            "pe_oi": d.get("pe_oi"),
+            "ce_oi": d.get("ce_oi"),
+        })
+    return results
+
+
+def get_latest_signal_status(limit: int = 10, pcr_limit: int = 50, engine=None) -> Dict[str, Any]:
+    """
+    Query the last N candles along with PCR history, start time, end time, and strategy flags.
     Ordered descending: newest/latest candle first (candles[0] is latest).
     Used by FastAPI status endpoint and CLI.
     """
@@ -232,6 +356,9 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
     candles = [format_candle(r) for r in last_n_rows]
     latest_candle = candles[0] if candles else None
 
+    # Load recent PCR history from dedicated crude_oil_pcr_data table
+    pcr_history = load_pcr_history_from_db(limit=pcr_limit, engine=eng)
+
     # Resolve active contract metadata
     from crude_oil.fetcher import get_active_crude_mini_contract
     active_contract = get_active_crude_mini_contract()
@@ -260,7 +387,7 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
     current_signal = latest_candle.get("signal", "NONE") if latest_candle else "NONE"
     buy_confirmed = latest_candle.get("buy_confirmed", False) if latest_candle else False
     sell_confirmed = latest_candle.get("sell_confirmed", False) if latest_candle else False
-    current_pcr = latest_candle.get("pcr") if latest_candle else None
+    current_pcr = pcr_history[0]["pcr"] if pcr_history else (latest_candle.get("pcr") if latest_candle else None)
     current_oi = latest_candle.get("open_interest") if latest_candle else 0
 
     return {
@@ -274,5 +401,6 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
         "open_interest": current_oi,
         "latest_candle": latest_candle,
         "candles": candles,
+        "pcr_data": pcr_history,
     }
 

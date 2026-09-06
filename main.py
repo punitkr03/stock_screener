@@ -214,14 +214,12 @@ def cmd_crude_oil(args) -> None:
 
     if getattr(args, "live", False):
         from crude_oil.daemon import run_poller
-        interval = getattr(args, "interval", 60) or 60
-        days = getattr(args, "days", 30) or 30
-        run_poller(interval_seconds=interval, bootstrap_days=days)
+        run_poller()
         return
 
     if getattr(args, "update", False):
         print("Running Crude Oil incremental update...")
-        status = update_crude_oil_data(recent_days=3)
+        status = update_crude_oil_data()
     else:
         days = getattr(args, "days", 30) or 30
         print(f"Running Crude Oil initialization for {days} days...")
@@ -229,9 +227,11 @@ def cmd_crude_oil(args) -> None:
 
     print("\n=== Crude Oil Mini Strategy Status ===")
     print(f"Symbol:               {status.get('symbol')}")
+    print(f"Contract:             {status.get('contract', {}).get('trading_symbol')} (Expiry: {status.get('contract', {}).get('expiry_date')})")
     print(f"Total Candles Stored: {status.get('total_candles')}")
     print(f"Current Signal:       {status.get('current_signal')}")
     print(f"Buy Confirmed:        {status.get('buy_confirmed')}")
+    print(f"Sell Confirmed:       {status.get('sell_confirmed')}")
     print(f"Put-Call Ratio (PCR): {status.get('pcr')}")
     print(f"Open Interest:        {status.get('open_interest')}")
 

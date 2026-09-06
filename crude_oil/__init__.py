@@ -23,15 +23,49 @@ from datetime import date
 from config import CRUDE_OIL_INIT_DAYS
 from crude_oil.fetcher import (
     calculate_pcr,
+    calculate_pcr_details,
     fetch_5m_candles,
     fetch_current_month_5m_candles,
     fetch_intraday_5m_candles,
     get_active_crude_mini_contract,
+    is_crude_oil_market_open,
 )
 from crude_oil.strategy import process_crude_oil_strategy
-from crude_oil.db import get_latest_signal_status, load_candles_from_db, save_candles_to_db, init_db
+from crude_oil.db import (
+    get_latest_candle_timestamp,
+    get_latest_signal_status,
+    load_candles_from_db,
+    load_pcr_history_from_db,
+    save_candles_to_db,
+    save_pcr_record_to_db,
+    init_db,
+)
 
 log = logging.getLogger(__name__)
+
+
+def update_crude_oil_pcr() -> Optional[Dict[str, Any]]:
+    """
+    Calculate live Put-Call Ratio (PCR) for the active Crude Oil contract
+    and persist into the dedicated crude_oil_pcr_data table.
+    """
+    init_db()
+    contract = get_active_crude_mini_contract()
+    instrument_key = contract.get("instrument_key")
+    pcr_record = calculate_pcr_details(underlying_key=instrument_key)
+
+    if pcr_record:
+        save_pcr_record_to_db(pcr_record)
+        log.info(
+            "Updated Crude Oil PCR: %s (PE OI: %s, CE OI: %s)",
+            pcr_record.get("pcr"),
+            pcr_record.get("pe_oi"),
+            pcr_record.get("ce_oi"),
+        )
+    else:
+        log.warning("Could not calculate PCR for %s", instrument_key)
+
+    return pcr_record
 
 
 def init_crude_oil_data(
@@ -60,11 +94,15 @@ def init_crude_oil_data(
         log.warning("No candles fetched during initialization for %s.", instrument_key)
         return get_latest_signal_status()
 
-    # 2. Calculate PCR from option contracts
-    pcr = calculate_pcr(underlying_key=instrument_key)
+    # 2. Calculate and persist PCR to crude_oil_pcr_data
+    pcr_details = calculate_pcr_details(underlying_key=instrument_key)
+    pcr_val = None
+    if pcr_details:
+        save_pcr_record_to_db(pcr_details)
+        pcr_val = pcr_details.get("pcr")
 
     # 3. Process strategy (HA, UT Bot 10/1.0, Breakout) and append PCR
-    df_processed = process_crude_oil_strategy(df_raw, current_pcr=pcr)
+    df_processed = process_crude_oil_strategy(df_raw, current_pcr=pcr_val)
 
     # 4. Save to database
     save_candles_to_db(df_processed)
@@ -82,10 +120,10 @@ def init_crude_oil_data(
 
 def update_crude_oil_data() -> Dict[str, Any]:
     """
-    Fast incremental refresh for live polling:
+    Fast incremental refresh for 5-minute candle updates:
     1. Checks if contract rollover or new calendar month occurred.
     2. Fetches today's live intraday 5m candles.
-    3. Merges with current month history from DB, updates live PCR, and persists.
+    3. Merges with current month history from DB, attaches latest PCR, and persists.
     """
     init_db()
 
@@ -138,10 +176,12 @@ def update_crude_oil_data() -> Dict[str, Any]:
         combined = combined[combined["timestamp"].dt.date >= month_start]
         combined = combined.drop_duplicates(subset=["timestamp"], keep="last").sort_values("timestamp", ascending=True).reset_index(drop=True)
 
-
-
-    # Calculate live PCR
-    pcr = calculate_pcr(underlying_key=instrument_key)
+    # Use latest recorded PCR from DB or calculate fresh
+    pcr_hist = load_pcr_history_from_db(limit=1)
+    if pcr_hist:
+        pcr = pcr_hist[0].get("pcr")
+    else:
+        pcr = calculate_pcr(underlying_key=instrument_key)
 
     # Recompute strategy on the current month time series
     processed = process_crude_oil_strategy(combined, current_pcr=pcr)
@@ -152,19 +192,20 @@ def update_crude_oil_data() -> Dict[str, Any]:
     return get_latest_signal_status()
 
 
-
-
-def get_crude_oil_status(limit: int = 10) -> Dict[str, Any]:
-    """Return latest signal, PCR, and breakout status from database for the last N candles."""
-    return get_latest_signal_status(limit=limit)
-
+def get_crude_oil_status(limit: int = 10, pcr_limit: int = 50) -> Dict[str, Any]:
+    """Return latest signal, PCR history, and breakout status from database."""
+    return get_latest_signal_status(limit=limit, pcr_limit=pcr_limit)
 
 
 __all__ = [
     "init_crude_oil_data",
     "update_crude_oil_data",
+    "update_crude_oil_pcr",
     "get_crude_oil_status",
+    "get_latest_candle_timestamp",
+    "is_crude_oil_market_open",
     "calculate_pcr",
+    "calculate_pcr_details",
     "process_crude_oil_strategy",
     "fetch_5m_candles",
 ]

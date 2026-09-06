@@ -154,11 +154,12 @@ def _do_crude_refresh(init: bool = False, days: int = 30) -> None:
     crude_status["last_error"] = None
 
     try:
-        from crude_oil import init_crude_oil_data, update_crude_oil_data
+        from crude_oil import init_crude_oil_data, update_crude_oil_data, update_crude_oil_pcr
         if init:
             init_crude_oil_data(days=days)
         else:
-            update_crude_oil_data(recent_days=3)
+            update_crude_oil_pcr()
+            update_crude_oil_data()
         crude_status["last_status"] = "success"
     except Exception as exc:
         crude_status["last_status"] = "error"
@@ -212,14 +213,14 @@ def get_refresh_status():
 # Crude Oil Routes
 # ---------------------------------------------------------------------------
 @app.get("/crude-oil/status", tags=["Crude Oil"])
-def get_crude_status_endpoint(limit: int = 10):
+def get_crude_status_endpoint(limit: int = 10, pcr_limit: int = 50):
     """
-    Return the latest strategy state, signals, PCR, and breakout status for Crude Oil Mini from DB.
-    By default returns the last 10 candles (or pass limit=12 for the last 1 hour of 5m candles).
+    Return the latest strategy state, signals, PCR, PCR history, and breakout status for Crude Oil Mini from DB.
+    By default returns the last 10 candles and last 50 PCR history entries (sorted descending, newest first).
     """
     try:
         from crude_oil import get_crude_oil_status
-        return get_crude_oil_status(limit=limit)
+        return get_crude_oil_status(limit=limit, pcr_limit=pcr_limit)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to load crude oil status: {exc}")
 

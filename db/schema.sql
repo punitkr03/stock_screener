@@ -260,6 +260,22 @@ CREATE INDEX IF NOT EXISTS idx_crude_oil_signal ON crude_oil_data(signal);
 CREATE INDEX IF NOT EXISTS idx_crude_oil_confirmed ON crude_oil_data(buy_confirmed);
 CREATE INDEX IF NOT EXISTS idx_crude_oil_sell_confirmed ON crude_oil_data(sell_confirmed);
 
+-- ============================================================================
+-- CRUDE OIL MINI PCR HISTORY (3-MIN INTERVALS)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS crude_oil_pcr_data (
+    timestamp               TIMESTAMPTZ PRIMARY KEY,
+    symbol                  TEXT NOT NULL DEFAULT 'CRUDEOILM',
+    instrument_key          TEXT NOT NULL,
+    pcr                     DOUBLE PRECISION NOT NULL,
+    pe_oi                   DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ce_oi                   DOUBLE PRECISION NOT NULL DEFAULT 0,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crude_oil_pcr_timestamp ON crude_oil_pcr_data(timestamp DESC);
+
 
 -- ============================================================================
 -- MIGRATION (run on existing databases — safe to ignore on fresh installs)

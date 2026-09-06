@@ -10,8 +10,18 @@ from datetime import datetime, timedelta
 import unittest
 import numpy as np
 import pandas as pd
+from zoneinfo import ZoneInfo
 from crude_oil.strategy import process_crude_oil_strategy
-from crude_oil.db import init_db, save_candles_to_db, load_candles_from_db, get_latest_signal_status
+from crude_oil.fetcher import is_crude_oil_market_open
+from crude_oil.db import (
+    init_db,
+    save_candles_to_db,
+    load_candles_from_db,
+    save_pcr_record_to_db,
+    load_pcr_history_from_db,
+    get_latest_candle_timestamp,
+    get_latest_signal_status,
+)
 from server.main import app, get_crude_status_endpoint, root
 
 
@@ -110,6 +120,37 @@ class TestCrudeOilStrategy(unittest.TestCase):
         self.assertIn("buy_confirmed", df_out.columns)
         self.assertIn("sell_confirmed", df_out.columns)
 
+    def test_pcr_db_operations(self):
+        """Test saving and loading dedicated 3-minute PCR history records."""
+        init_db()
+        t1 = datetime(2026, 9, 1, 10, 0)
+        t2 = datetime(2026, 9, 1, 10, 3)
+
+        rec1 = {
+            "timestamp": t1,
+            "symbol": "CRUDEOILM",
+            "instrument_key": "MCX_FO|565900",
+            "pcr": 1.25,
+            "pe_oi": 125000.0,
+            "ce_oi": 100000.0,
+        }
+        rec2 = {
+            "timestamp": t2,
+            "symbol": "CRUDEOILM",
+            "instrument_key": "MCX_FO|565900",
+            "pcr": 1.35,
+            "pe_oi": 135000.0,
+            "ce_oi": 100000.0,
+        }
+
+        self.assertTrue(save_pcr_record_to_db(rec1))
+        self.assertTrue(save_pcr_record_to_db(rec2))
+
+        history = load_pcr_history_from_db(limit=10)
+        self.assertGreaterEqual(len(history), 2)
+        # Verify descending order (latest first)
+        self.assertGreaterEqual(history[0]["timestamp"], history[1]["timestamp"])
+
     def test_db_operations(self):
         """Test saving processed candles to PostgreSQL and querying status."""
         init_db()
@@ -133,6 +174,8 @@ class TestCrudeOilStrategy(unittest.TestCase):
         self.assertIn("buy_confirmed", status)
         self.assertIn("sell_confirmed", status)
         self.assertIn("pcr", status)
+        self.assertIn("pcr_data", status)
+        self.assertIsInstance(status["pcr_data"], list)
         self.assertIn("latest_candle", status)
 
     def test_fastapi_endpoints(self):
@@ -148,10 +191,59 @@ class TestCrudeOilStrategy(unittest.TestCase):
         self.assertIn("buy_confirmed", status_data)
         self.assertIn("sell_confirmed", status_data)
         self.assertIn("pcr", status_data)
+        self.assertIn("pcr_data", status_data)
+        self.assertIsInstance(status_data["pcr_data"], list)
         self.assertIn("open_interest", status_data)
 
 
+    def test_market_hours_logic(self):
+        """Test MCX market hours evaluation (09:00 - 23:30 IST, Mon-Fri)."""
+        ist = ZoneInfo("Asia/Kolkata")
+        # Tuesday 10:00 AM IST -> Open
+        t_open = datetime(2026, 9, 8, 10, 0, tzinfo=ist)
+        self.assertTrue(is_crude_oil_market_open(t_open))
 
+        # Tuesday 23:29 IST -> Open
+        t_late = datetime(2026, 9, 8, 23, 29, tzinfo=ist)
+        self.assertTrue(is_crude_oil_market_open(t_late))
+
+        # Tuesday 23:36 IST -> Closed (past 5 min grace)
+        t_after_close = datetime(2026, 9, 8, 23, 36, tzinfo=ist)
+        self.assertFalse(is_crude_oil_market_open(t_after_close))
+
+        # Tuesday 08:55 AM IST -> Closed (pre-market)
+        t_early = datetime(2026, 9, 8, 8, 55, tzinfo=ist)
+        self.assertFalse(is_crude_oil_market_open(t_early))
+
+        # Sunday 12:00 PM IST -> Closed (weekend)
+        t_weekend = datetime(2026, 9, 6, 12, 0, tzinfo=ist)
+        self.assertFalse(is_crude_oil_market_open(t_weekend))
+
+    def test_latest_candle_timestamp(self):
+        """Test get_latest_candle_timestamp helper."""
+        from sqlalchemy import text
+        from crude_oil.db import get_db_engine
+        init_db()
+        t_fut = datetime(2099, 1, 1, 12, 0, tzinfo=ZoneInfo("UTC"))
+        fut_df = pd.DataFrame([{
+            "timestamp": t_fut,
+            "symbol": "CRUDEOILM",
+            "instrument_key": "TEST",
+            "open": 8000.0,
+            "high": 8010.0,
+            "low": 7990.0,
+            "close": 8005.0,
+            "volume": 100,
+            "open_interest": 5000,
+        }])
+        df_proc = process_crude_oil_strategy(fut_df, current_pcr=1.25)
+        save_candles_to_db(df_proc)
+        latest_ts = get_latest_candle_timestamp()
+        self.assertEqual(latest_ts, t_fut)
+
+        # Clean up test row
+        with get_db_engine().begin() as conn:
+            conn.execute(text("DELETE FROM crude_oil_data WHERE timestamp >= '2099-01-01'"))
 
 
 if __name__ == "__main__":
