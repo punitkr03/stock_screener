@@ -36,8 +36,8 @@ def main():
     parser.add_argument(
         "--days",
         type=int,
-        default=CRUDE_OIL_INIT_DAYS,
-        help=f"Number of historical days of 5m candles to fetch (default: {CRUDE_OIL_INIT_DAYS})",
+        default=None,
+        help="Optional custom number of historical days of 5m candles to fetch (default: current month)",
     )
     parser.add_argument(
         "--update",
@@ -70,15 +70,20 @@ def main():
 
     if args.live:
         from crude_oil.daemon import run_poller
-        run_poller(interval_seconds=args.interval, bootstrap_days=args.days)
+        run_poller(interval_seconds=args.interval)
         return
 
     if args.update:
         log.info("Running incremental update...")
-        status = update_crude_oil_data(recent_days=3)
+        status = update_crude_oil_data()
     else:
-        log.info("Running full initialization for %s days...", args.days)
-        status = init_crude_oil_data(days=args.days)
+        if args.days:
+            log.info("Running initialization for %s days...", args.days)
+            status = init_crude_oil_data(days=args.days)
+        else:
+            log.info("Running initialization for current month...")
+            status = init_crude_oil_data()
+
 
     print("\n=== Crude Oil Mini Strategy Status ===")
     print(f"Symbol:                   {status.get('symbol')}")

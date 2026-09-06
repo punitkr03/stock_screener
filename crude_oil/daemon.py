@@ -42,7 +42,7 @@ def _signal_handler(sig, frame):
     _running = False
 
 
-def run_poller(interval_seconds: int = 60, bootstrap_days: int = 30) -> None:
+def run_poller(interval_seconds: int = 60) -> None:
     """Run persistent polling loop fetching data every interval_seconds."""
     global _running
     signal.signal(signal.SIGINT, _signal_handler)
@@ -51,8 +51,8 @@ def run_poller(interval_seconds: int = 60, bootstrap_days: int = 30) -> None:
     init_db()
     existing = load_candles_from_db(limit=1)
     if existing.empty:
-        log.info("No candle history found in DB. Bootstrapping with %s days...", bootstrap_days)
-        init_crude_oil_data(days=bootstrap_days)
+        log.info("No candle history found in DB. Initializing current month data...")
+        init_crude_oil_data()
 
     log.info("═" * 65)
     log.info("Crude Oil Mini Live Polling Daemon started (interval: %ss)", interval_seconds)
@@ -62,10 +62,10 @@ def run_poller(interval_seconds: int = 60, bootstrap_days: int = 30) -> None:
     while _running:
         try:
             start_t = time.time()
-            status = update_crude_oil_data(recent_days=2)
+            status = update_crude_oil_data()
 
             latest = status.get("latest_candle") or {}
-            ts = latest.get("timestamp", "N/A")
+            ts = latest.get("candle_start_time") or latest.get("timestamp", "N/A")
             close = latest.get("close", "N/A")
             sig = status.get("current_signal", "NONE")
             confirmed = status.get("buy_confirmed", False)
@@ -82,6 +82,7 @@ def run_poller(interval_seconds: int = 60, bootstrap_days: int = 30) -> None:
                 pcr,
                 oi,
             )
+
 
         except Exception as exc:
             log.error("Error during Crude Oil poll cycle: %s", exc, exc_info=True)
@@ -105,16 +106,11 @@ def main():
         default=60,
         help="Polling interval in seconds (default: 60)",
     )
-    parser.add_argument(
-        "--bootstrap-days",
-        type=int,
-        default=30,
-        help="Days of history to initialize if DB is empty (default: 30)",
-    )
     args = parser.parse_args()
 
-    run_poller(interval_seconds=args.interval, bootstrap_days=args.bootstrap_days)
+    run_poller(interval_seconds=args.interval)
 
 
 if __name__ == "__main__":
     main()
+

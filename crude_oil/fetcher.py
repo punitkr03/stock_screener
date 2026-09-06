@@ -157,7 +157,7 @@ def fetch_5m_candles(
     )
 
     # Convert types and standardize
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     for col in ["open", "high", "low", "close"]:
         df[col] = df[col].astype(float)
     for col in ["volume", "open_interest"]:
@@ -198,7 +198,7 @@ def fetch_intraday_5m_candles(instrument_key: str | None = None) -> pd.DataFrame
             candles,
             columns=["timestamp", "open", "high", "low", "close", "volume", "open_interest"],
         )
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
         for col in ["open", "high", "low", "close"]:
             df[col] = df[col].astype(float)
         for col in ["volume", "open_interest"]:
@@ -211,6 +211,67 @@ def fetch_intraday_5m_candles(instrument_key: str | None = None) -> pd.DataFrame
     except Exception as exc:
         log.error("Failed to fetch intraday 5m candles: %s", exc)
         return pd.DataFrame()
+
+
+def fetch_current_month_5m_candles(
+    instrument_key: str | None = None,
+    end_date: date | None = None,
+) -> pd.DataFrame:
+    """
+    Fetch 5-minute candles specifically for the current active calendar month
+    (from the 1st of the month to today) for the active futures contract.
+    """
+    if not instrument_key:
+        active = get_active_crude_mini_contract()
+        instrument_key = active.get("instrument_key", DEFAULT_CRUDE_KEY)
+
+    to_d = end_date or date.today()
+    from_d = to_d.replace(day=1)
+
+    log.info("Fetching current month 5m candles for %s from %s to %s", instrument_key, from_d, to_d)
+
+    # 1. Fetch historical chunk for current month
+    raw_month = fetch_5m_candles_chunk(instrument_key, to_d, from_d)
+
+    # 2. Fetch today's live intraday candles
+    df_intra = fetch_intraday_5m_candles(instrument_key)
+
+    all_rows = []
+    if raw_month:
+        all_rows.extend(raw_month)
+
+    df_hist = pd.DataFrame()
+    if all_rows:
+        df_hist = pd.DataFrame(
+            all_rows,
+            columns=["timestamp", "open", "high", "low", "close", "volume", "open_interest"],
+        )
+        df_hist["timestamp"] = pd.to_datetime(df_hist["timestamp"], utc=True)
+        for col in ["open", "high", "low", "close"]:
+            df_hist[col] = df_hist[col].astype(float)
+        for col in ["volume", "open_interest"]:
+            df_hist[col] = df_hist[col].fillna(0).astype(int)
+        df_hist["symbol"] = CRUDE_OIL_SYMBOL
+        df_hist["instrument_key"] = instrument_key
+
+    # Merge month historical chunk with live intraday
+    combined = pd.concat([df_hist, df_intra], ignore_index=True) if not df_intra.empty else df_hist
+
+    if combined.empty:
+        log.warning("No current month 5m candles returned for %s", instrument_key)
+        return pd.DataFrame()
+
+    # Filter strictly to current month
+    combined["timestamp"] = pd.to_datetime(combined["timestamp"], utc=True)
+    combined = combined[combined["timestamp"].dt.date >= from_d]
+    combined["symbol"] = CRUDE_OIL_SYMBOL
+    combined["instrument_key"] = instrument_key
+
+    combined = combined.drop_duplicates(subset=["timestamp"]).sort_values("timestamp", ascending=True).reset_index(drop=True)
+    log.info("Loaded %s current month candles for %s", len(combined), instrument_key)
+    return combined
+
+
 
 
 

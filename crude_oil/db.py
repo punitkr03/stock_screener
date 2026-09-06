@@ -110,6 +110,11 @@ def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
         updated_at     = NOW();
     """
 
+    df = df.copy()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp", ascending=True).reset_index(drop=True)
+
+
     records = []
     for _, row in df.iterrows():
         ts = row["timestamp"]
@@ -155,9 +160,10 @@ def load_candles_from_db(limit: Optional[int] = None, engine=None) -> pd.DataFra
         df = pd.read_sql_query(text(query), conn)
 
     if not df.empty and "timestamp" in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
     return df
+
 
 
 def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
@@ -174,12 +180,10 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
         # Total count
         count_res = conn.execute(text("SELECT COUNT(*) FROM crude_oil_data")).scalar() or 0
 
-        # Last N candles
+        # Last N candles (ordered descending: newest/latest candle first)
         last_n_rows = conn.execute(
             text(f"""
-                SELECT * FROM (
-                    SELECT * FROM crude_oil_data ORDER BY timestamp DESC LIMIT {int(limit)}
-                ) sub ORDER BY timestamp ASC
+                SELECT * FROM crude_oil_data ORDER BY timestamp DESC LIMIT {int(limit)}
             """)
         ).fetchall()
 
@@ -218,9 +222,9 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
             "buy_confirmed": d.get("buy_confirmed", False),
         }
 
-
     candles = [format_candle(r) for r in last_n_rows]
-    latest_candle = candles[-1] if candles else None
+    latest_candle = candles[0] if candles else None
+
 
     # Resolve latest overall status
     current_signal = latest_candle.get("signal", "NONE") if latest_candle else "NONE"

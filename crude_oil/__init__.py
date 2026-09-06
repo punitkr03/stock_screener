@@ -19,36 +19,51 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from datetime import date
 from config import CRUDE_OIL_INIT_DAYS
-from crude_oil.fetcher import calculate_pcr, fetch_5m_candles, fetch_intraday_5m_candles, get_active_crude_mini_contract
+from crude_oil.fetcher import (
+    calculate_pcr,
+    fetch_5m_candles,
+    fetch_current_month_5m_candles,
+    fetch_intraday_5m_candles,
+    get_active_crude_mini_contract,
+)
 from crude_oil.strategy import process_crude_oil_strategy
 from crude_oil.db import get_latest_signal_status, load_candles_from_db, save_candles_to_db, init_db
 
 log = logging.getLogger(__name__)
 
 
-def init_crude_oil_data(days: int = CRUDE_OIL_INIT_DAYS) -> Dict[str, Any]:
+def init_crude_oil_data(
+    start_date: date | None = None,
+    days: int | None = None,
+) -> Dict[str, Any]:
     """
-    Initialize 1 month of 5-minute candles for Crude Oil Mini, compute
-    Heikin Ashi + UT Bot + Breakout confirmation + PCR, and save to DB.
+    Initialize 5-minute candles for Crude Oil Mini for the current active month,
+    compute Heikin Ashi + UT Bot (ATR 10 / Key Value 1.0) + Breakout confirmation + PCR,
+    and save to PostgreSQL.
     """
-    log.info("Starting initialization of Crude Oil Mini data for %s days...", days)
     init_db()
 
     contract = get_active_crude_mini_contract()
     instrument_key = contract.get("instrument_key")
-    log.info("Using contract: %s (%s)", instrument_key, contract.get("trading_symbol"))
+    log.info("Starting Crude Oil Mini initialization for %s (%s)...", instrument_key, contract.get("trading_symbol"))
 
-    # 1. Fetch historical 5-minute candles
-    df_raw = fetch_5m_candles(instrument_key=instrument_key, days=days)
+    # 1. Fetch current month 5-minute candles (or specified days if overridden)
+    if days is not None:
+        log.info("Fetching custom %s days history...", days)
+        df_raw = fetch_5m_candles(instrument_key=instrument_key, days=days)
+    else:
+        df_raw = fetch_current_month_5m_candles(instrument_key=instrument_key, end_date=start_date)
+
     if df_raw.empty:
-        log.warning("No candles fetched during initialization.")
+        log.warning("No candles fetched during initialization for %s.", instrument_key)
         return get_latest_signal_status()
 
     # 2. Calculate PCR from option contracts
     pcr = calculate_pcr(underlying_key=instrument_key)
 
-    # 3. Process strategy (HA, UT Bot, Breakout) and append PCR
+    # 3. Process strategy (HA, UT Bot 10/1.0, Breakout) and append PCR
     df_processed = process_crude_oil_strategy(df_raw, current_pcr=pcr)
 
     # 4. Save to database
@@ -65,25 +80,43 @@ def init_crude_oil_data(days: int = CRUDE_OIL_INIT_DAYS) -> Dict[str, Any]:
     return status
 
 
-def update_crude_oil_data(recent_days: int = 1) -> Dict[str, Any]:
+def update_crude_oil_data() -> Dict[str, Any]:
     """
     Fast incremental refresh for live polling:
-    Fetches only today's intraday 5m candles, checks for new bars or PCR changes,
-    and updates the database without re-downloading multi-day historical chunks.
+    1. Checks if contract rollover or new calendar month occurred.
+    2. Fetches today's live intraday 5m candles.
+    3. Merges with current month history from DB, updates live PCR, and persists.
     """
     init_db()
 
     contract = get_active_crude_mini_contract()
     instrument_key = contract.get("instrument_key")
+    today = date.today()
 
-    # 1. Fetch today's live intraday candles
+    # Load existing history from DB for the active contract
+    existing_df = load_candles_from_db()
+
+    # Check for rollover: empty DB, different contract key, or month changed
+    if existing_df.empty:
+        log.info("No candle history found in DB. Initializing current month data...")
+        return init_crude_oil_data()
+
+    if "instrument_key" in existing_df.columns and not existing_df["instrument_key"].dropna().empty:
+        db_key = existing_df["instrument_key"].dropna().iloc[-1]
+        if db_key != instrument_key:
+            log.info("Contract rollover detected (DB: %s -> Active: %s). Re-initializing new month...", db_key, instrument_key)
+            return init_crude_oil_data()
+
+    latest_ts = existing_df["timestamp"].max() if "timestamp" in existing_df.columns else None
+    if latest_ts is not None and hasattr(latest_ts, "month"):
+        if latest_ts.month != today.month and latest_ts.year <= today.year:
+            log.info("New calendar month detected (%s -> %s). Initializing new month...", latest_ts.month, today.month)
+            return init_crude_oil_data()
+
+    # Fetch today's live intraday candles
     recent_raw = fetch_intraday_5m_candles(instrument_key=instrument_key)
     if recent_raw.empty:
-        # Fallback to 1-day query if outside market hours or market open gap
-        recent_raw = fetch_5m_candles(instrument_key=instrument_key, days=recent_days)
-
-    # 2. Load existing history from DB
-    existing_df = load_candles_from_db()
+        recent_raw = fetch_5m_candles(instrument_key=instrument_key, days=1)
 
     if existing_df.empty and recent_raw.empty:
         log.warning("No existing or recent candles available to update.")
@@ -94,23 +127,30 @@ def update_crude_oil_data(recent_days: int = 1) -> Dict[str, Any]:
     elif recent_raw.empty:
         combined = existing_df
     else:
-        # Merge and deduplicate by timestamp
-        base_cols = ["timestamp", "open", "high", "low", "close", "volume", "open_interest", "symbol", "instrument_key"]
+        # Merge and deduplicate by timestamp, preserving recorded PCR
+        base_cols = ["timestamp", "open", "high", "low", "close", "volume", "open_interest", "pcr", "symbol", "instrument_key"]
         r1 = existing_df[[c for c in base_cols if c in existing_df.columns]]
         r2 = recent_raw[[c for c in base_cols if c in recent_raw.columns]]
         combined = pd.concat([r1, r2], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["timestamp"]).sort_values("timestamp", ascending=True).reset_index(drop=True)
+        # Keep only current month's candles
+        month_start = today.replace(day=1)
+        combined["timestamp"] = pd.to_datetime(combined["timestamp"], utc=True)
+        combined = combined[combined["timestamp"].dt.date >= month_start]
+        combined = combined.drop_duplicates(subset=["timestamp"], keep="last").sort_values("timestamp", ascending=True).reset_index(drop=True)
 
-    # 3. Calculate live PCR
+
+
+    # Calculate live PCR
     pcr = calculate_pcr(underlying_key=instrument_key)
 
-    # 4. Recompute strategy on the full time series
+    # Recompute strategy on the current month time series
     processed = process_crude_oil_strategy(combined, current_pcr=pcr)
 
-    # 5. Save to DB
+    # Save to DB
     save_candles_to_db(processed)
 
     return get_latest_signal_status()
+
 
 
 
