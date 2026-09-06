@@ -88,6 +88,7 @@ def process_crude_oil_strategy(
         res["TrailingStop"] = np.nan
         res["Signal"] = SIGNAL_NONE
         res["buy_confirmed"] = False
+        res["sell_confirmed"] = False
     else:
         res = compute_ut_bot(
             res,
@@ -96,40 +97,69 @@ def process_crude_oil_strategy(
             use_heikin_ashi=True,
         )
 
-    # 3. Compute Breakout Confirmation (chronological progression)
+    # 3. Compute Breakout Confirmation for both BUY & SELL (chronological progression)
     buy_confirmed_list = [False] * len(res)
+    sell_confirmed_list = [False] * len(res)
+
     is_buy_active = False
     active_buy_high: Optional[float] = None
-    has_broken_out = False
+    has_buy_broken_out = False
+
+    is_sell_active = False
+    active_sell_low: Optional[float] = None
+    has_sell_broken_out = False
 
     for i in range(len(res)):
         sig = res["Signal"].iloc[i] if "Signal" in res.columns else SIGNAL_NONE
         ha_high = float(res["HA_High"].iloc[i]) if "HA_High" in res.columns else float(res["High"].iloc[i])
+        ha_low = float(res["HA_Low"].iloc[i]) if "HA_Low" in res.columns else float(res["Low"].iloc[i])
         ha_close = float(res["HA_Close"].iloc[i]) if "HA_Close" in res.columns else float(res["Close"].iloc[i])
 
         if sig == SIGNAL_BUY:
+            # Activate BUY tracking
             is_buy_active = True
             active_buy_high = ha_high
-            has_broken_out = False
-            # Initial signal bar itself is waiting for follow-through breakout
+            has_buy_broken_out = False
             buy_confirmed_list[i] = False
+
+            # Invalidate active SELL tracking
+            is_sell_active = False
+            active_sell_low = None
+            has_sell_broken_out = False
+            sell_confirmed_list[i] = False
 
         elif sig == SIGNAL_SELL:
+            # Activate SELL tracking
+            is_sell_active = True
+            active_sell_low = ha_low
+            has_sell_broken_out = False
+            sell_confirmed_list[i] = False
+
+            # Invalidate active BUY tracking
             is_buy_active = False
             active_buy_high = None
-            has_broken_out = False
+            has_buy_broken_out = False
             buy_confirmed_list[i] = False
 
-        elif is_buy_active and active_buy_high is not None:
-            # Check if current candle closes above the buy signal HA High
-            if ha_close > active_buy_high:
-                has_broken_out = True
-
-            buy_confirmed_list[i] = has_broken_out
         else:
-            buy_confirmed_list[i] = False
+            # Check active BUY breakout follow-through
+            if is_buy_active and active_buy_high is not None:
+                if ha_close > active_buy_high:
+                    has_buy_broken_out = True
+                buy_confirmed_list[i] = has_buy_broken_out
+            else:
+                buy_confirmed_list[i] = False
+
+            # Check active SELL breakout follow-through
+            if is_sell_active and active_sell_low is not None:
+                if ha_close < active_sell_low:
+                    has_sell_broken_out = True
+                sell_confirmed_list[i] = has_sell_broken_out
+            else:
+                sell_confirmed_list[i] = False
 
     res["buy_confirmed"] = buy_confirmed_list
+    res["sell_confirmed"] = sell_confirmed_list
 
     # 4. Standardize column names for database storage
     db_cols = {
@@ -150,6 +180,7 @@ def process_crude_oil_strategy(
         "trailing_stop": res["TrailingStop"] if "TrailingStop" in res.columns else None,
         "signal": res["Signal"] if "Signal" in res.columns else SIGNAL_NONE,
         "buy_confirmed": res["buy_confirmed"],
+        "sell_confirmed": res["sell_confirmed"],
     }
 
     out_df = pd.DataFrame(db_cols)
@@ -165,3 +196,4 @@ def process_crude_oil_strategy(
         out_df.iloc[-1, out_df.columns.get_loc("pcr")] = current_pcr
 
     return out_df
+

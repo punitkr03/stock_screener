@@ -5,15 +5,16 @@ Database integration for Crude Oil Mini (CRUDEOILM).
 Handles table creation, batch upsert of 5-minute candles, and status queries.
 """
 
-from __future__ import annotations
-
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
 from typing import Any, Dict, List, Optional
 
+
 import pandas as pd
 from sqlalchemy import create_engine, text
+
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
@@ -57,13 +58,17 @@ def init_db(engine=None) -> None:
         trailing_stop           DOUBLE PRECISION,
         signal                  TEXT NOT NULL DEFAULT 'NONE',
         buy_confirmed           BOOLEAN NOT NULL DEFAULT FALSE,
+        sell_confirmed          BOOLEAN NOT NULL DEFAULT FALSE,
         created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE crude_oil_data ADD COLUMN IF NOT EXISTS sell_confirmed BOOLEAN DEFAULT FALSE;
+
     CREATE INDEX IF NOT EXISTS idx_crude_oil_timestamp ON crude_oil_data(timestamp DESC);
     CREATE INDEX IF NOT EXISTS idx_crude_oil_signal ON crude_oil_data(signal);
     CREATE INDEX IF NOT EXISTS idx_crude_oil_confirmed ON crude_oil_data(buy_confirmed);
+    CREATE INDEX IF NOT EXISTS idx_crude_oil_sell_confirmed ON crude_oil_data(sell_confirmed);
     """
     with eng.begin() as conn:
         conn.execute(text(create_sql))
@@ -84,10 +89,10 @@ def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
     upsert_sql = """
     INSERT INTO crude_oil_data (
         timestamp, symbol, instrument_key, open, high, low, close, volume, open_interest,
-        pcr, ha_open, ha_high, ha_low, ha_close, atr, trailing_stop, signal, buy_confirmed, updated_at
+        pcr, ha_open, ha_high, ha_low, ha_close, atr, trailing_stop, signal, buy_confirmed, sell_confirmed, updated_at
     ) VALUES (
         :timestamp, :symbol, :instrument_key, :open, :high, :low, :close, :volume, :open_interest,
-        :pcr, :ha_open, :ha_high, :ha_low, :ha_close, :atr, :trailing_stop, :signal, :buy_confirmed, NOW()
+        :pcr, :ha_open, :ha_high, :ha_low, :ha_close, :atr, :trailing_stop, :signal, :buy_confirmed, :sell_confirmed, NOW()
     )
     ON CONFLICT (timestamp) DO UPDATE SET
         symbol         = EXCLUDED.symbol,
@@ -107,6 +112,7 @@ def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
         trailing_stop  = EXCLUDED.trailing_stop,
         signal         = EXCLUDED.signal,
         buy_confirmed  = EXCLUDED.buy_confirmed,
+        sell_confirmed = EXCLUDED.sell_confirmed,
         updated_at     = NOW();
     """
 
@@ -140,6 +146,7 @@ def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
             "trailing_stop": float(row["trailing_stop"]) if pd.notnull(row.get("trailing_stop")) else None,
             "signal": str(row.get("signal", "NONE")),
             "buy_confirmed": bool(row.get("buy_confirmed", False)),
+            "sell_confirmed": bool(row.get("sell_confirmed", False)),
         })
 
     with eng.begin() as conn:
@@ -168,10 +175,11 @@ def load_candles_from_db(limit: Optional[int] = None, engine=None) -> pd.DataFra
 
 def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
     """
-    Query the last 10 candles along with PCR, start time, end time, and strategy flags.
+    Query the last N candles along with PCR, start time, end time, and strategy flags.
+    Ordered descending: newest/latest candle first (candles[0] is latest).
     Used by FastAPI status endpoint and CLI.
     """
-    from datetime import timedelta
+    from datetime import timedelta, timezone
 
     init_db(engine)
     eng = engine or get_db_engine()
@@ -186,8 +194,6 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
                 SELECT * FROM crude_oil_data ORDER BY timestamp DESC LIMIT {int(limit)}
             """)
         ).fetchall()
-
-    from datetime import timedelta, timezone
 
     def format_candle(r):
         if not r:
@@ -219,24 +225,51 @@ def get_latest_signal_status(limit: int = 10, engine=None) -> Dict[str, Any]:
             "atr": d.get("atr"),
             "trailing_stop": d.get("trailing_stop"),
             "signal": d.get("signal", "NONE"),
-            "buy_confirmed": d.get("buy_confirmed", False),
+            "buy_confirmed": bool(d.get("buy_confirmed", False)),
+            "sell_confirmed": bool(d.get("sell_confirmed", False)),
         }
 
     candles = [format_candle(r) for r in last_n_rows]
     latest_candle = candles[0] if candles else None
 
+    # Resolve active contract metadata
+    from crude_oil.fetcher import get_active_crude_mini_contract
+    active_contract = get_active_crude_mini_contract()
+
+    expiry_ms = active_contract.get("expiry")
+    expiry_str = None
+    if expiry_ms:
+        try:
+            expiry_str = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        except Exception:
+            expiry_str = str(expiry_ms)
+
+    contract_info = {
+        "trading_symbol": active_contract.get("trading_symbol", "CRUDEOILM FUT"),
+        "instrument_key": active_contract.get("instrument_key", ""),
+        "expiry_date": expiry_str,
+        "exchange": active_contract.get("exchange", "MCX"),
+        "segment": active_contract.get("segment", "MCX_FO"),
+        "lot_size": active_contract.get("lot_size", 10),
+        "price_quote_unit": active_contract.get("price_quote_unit", "BBL"),
+        "underlying_symbol": active_contract.get("underlying_symbol", "CRUDEOILM"),
+        "underlying_key": active_contract.get("underlying_key", ""),
+    }
 
     # Resolve latest overall status
     current_signal = latest_candle.get("signal", "NONE") if latest_candle else "NONE"
     buy_confirmed = latest_candle.get("buy_confirmed", False) if latest_candle else False
+    sell_confirmed = latest_candle.get("sell_confirmed", False) if latest_candle else False
     current_pcr = latest_candle.get("pcr") if latest_candle else None
     current_oi = latest_candle.get("open_interest") if latest_candle else 0
 
     return {
         "symbol": "CRUDEOILM",
+        "contract": contract_info,
         "total_candles": count_res,
         "current_signal": current_signal,
         "buy_confirmed": buy_confirmed,
+        "sell_confirmed": sell_confirmed,
         "pcr": current_pcr,
         "open_interest": current_oi,
         "latest_candle": latest_candle,

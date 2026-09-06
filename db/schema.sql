@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS crude_oil_data (
     trailing_stop           DOUBLE PRECISION,
     signal                  TEXT NOT NULL DEFAULT 'NONE',  -- 'BUY', 'SELL', 'NONE'
     buy_confirmed           BOOLEAN NOT NULL DEFAULT FALSE,
+    sell_confirmed          BOOLEAN NOT NULL DEFAULT FALSE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -257,6 +258,8 @@ CREATE TABLE IF NOT EXISTS crude_oil_data (
 CREATE INDEX IF NOT EXISTS idx_crude_oil_timestamp ON crude_oil_data(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_crude_oil_signal ON crude_oil_data(signal);
 CREATE INDEX IF NOT EXISTS idx_crude_oil_confirmed ON crude_oil_data(buy_confirmed);
+CREATE INDEX IF NOT EXISTS idx_crude_oil_sell_confirmed ON crude_oil_data(sell_confirmed);
+
 
 -- ============================================================================
 -- MIGRATION (run on existing databases — safe to ignore on fresh installs)

@@ -67,21 +67,23 @@ def run_poller(interval_seconds: int = 60) -> None:
             latest = status.get("latest_candle") or {}
             ts = latest.get("candle_start_time") or latest.get("timestamp", "N/A")
             close = latest.get("close", "N/A")
-            sig = status.get("current_signal", "NONE")
-            confirmed = status.get("buy_confirmed", False)
+            buy_conf = status.get("buy_confirmed", False)
+            sell_conf = status.get("sell_confirmed", False)
             pcr = status.get("pcr", "N/A")
             oi = status.get("open_interest", "N/A")
 
             log.info(
-                "[%s] Candle: %s | Close: %s | Signal: %s | Confirmed: %s | PCR: %s | OI: %s",
+                "[%s] Candle: %s | Close: %s | Signal: %s | BuyConf: %s | SellConf: %s | PCR: %s | OI: %s",
                 datetime.now().strftime("%H:%M:%S"),
                 ts,
                 close,
                 sig,
-                confirmed,
+                buy_conf,
+                sell_conf,
                 pcr,
                 oi,
             )
+
 
 
         except Exception as exc:

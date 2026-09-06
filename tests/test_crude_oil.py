@@ -72,7 +72,7 @@ class TestCrudeOilStrategy(unittest.TestCase):
             "timestamp", "symbol", "instrument_key",
             "open", "high", "low", "close", "volume", "open_interest",
             "ha_open", "ha_high", "ha_low", "ha_close",
-            "atr", "trailing_stop", "signal", "buy_confirmed", "pcr"
+            "atr", "trailing_stop", "signal", "buy_confirmed", "sell_confirmed", "pcr"
         ]
         for col in expected_cols:
             self.assertIn(col, df_out.columns, f"Missing column {col}")
@@ -84,11 +84,12 @@ class TestCrudeOilStrategy(unittest.TestCase):
         valid_signals = {"BUY", "SELL", "NONE"}
         self.assertTrue(set(df_out["signal"].unique()).issubset(valid_signals))
 
-        # Verify buy_confirmed is boolean
+        # Verify buy_confirmed and sell_confirmed are boolean
         self.assertTrue(set(df_out["buy_confirmed"].unique()).issubset({True, False}))
+        self.assertTrue(set(df_out["sell_confirmed"].unique()).issubset({True, False}))
 
     def test_breakout_logic_progression(self):
-        """Test that buy_confirmed flag exists and is evaluated chronologically."""
+        """Test that buy_confirmed and sell_confirmed flags exist and evaluate chronologically."""
         base_time = datetime(2026, 9, 1, 9, 0)
         rows = [
             {
@@ -107,6 +108,7 @@ class TestCrudeOilStrategy(unittest.TestCase):
         df = pd.DataFrame(rows)
         df_out = process_crude_oil_strategy(df, atr_period=5, key_value=1.0)
         self.assertIn("buy_confirmed", df_out.columns)
+        self.assertIn("sell_confirmed", df_out.columns)
 
     def test_db_operations(self):
         """Test saving processed candles to PostgreSQL and querying status."""
@@ -123,9 +125,13 @@ class TestCrudeOilStrategy(unittest.TestCase):
         # Get status
         status = get_latest_signal_status()
         self.assertEqual(status["symbol"], "CRUDEOILM")
+        self.assertIn("contract", status)
+        self.assertIn("trading_symbol", status["contract"])
+        self.assertIn("expiry_date", status["contract"])
         self.assertGreaterEqual(status["total_candles"], len(self.sample_df))
         self.assertIn("current_signal", status)
         self.assertIn("buy_confirmed", status)
+        self.assertIn("sell_confirmed", status)
         self.assertIn("pcr", status)
         self.assertIn("latest_candle", status)
 
@@ -138,9 +144,13 @@ class TestCrudeOilStrategy(unittest.TestCase):
         # 2. Crude Oil Status endpoint
         status_data = get_crude_status_endpoint()
         self.assertEqual(status_data["symbol"], "CRUDEOILM")
+        self.assertIn("contract", status_data)
         self.assertIn("buy_confirmed", status_data)
+        self.assertIn("sell_confirmed", status_data)
         self.assertIn("pcr", status_data)
         self.assertIn("open_interest", status_data)
+
+
 
 
 

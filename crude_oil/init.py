@@ -90,8 +90,10 @@ def main():
     print(f"Total Candles Stored:     {status.get('total_candles')}")
     print(f"Current Signal:           {status.get('current_signal')}")
     print(f"Buy Confirmed:            {status.get('buy_confirmed')}")
+    print(f"Sell Confirmed:           {status.get('sell_confirmed')}")
     print(f"Put-Call Ratio (PCR):     {status.get('pcr')}")
     print(f"Open Interest:            {status.get('open_interest')}")
+
 
     latest = status.get("latest_candle")
     if latest:
