@@ -74,7 +74,7 @@ UPSTOX_AUTH_TOKEN = os.getenv("UPSTOX_AUTH_TOKEN", "")
 CRUDE_OIL_SYMBOL              = "CRUDEOILM"
 CRUDE_OIL_CANDLE_INTERVAL     = "5"     # 5-minute candles
 CRUDE_OIL_INIT_DAYS           = 30    # fallback max days
-CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "10"))    # TradingView UT Bot ATR period: 10
+CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "20"))    # TradingView UT Bot ATR period: 10
 CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # TradingView UT Bot Key Value: 1.0
 
 
