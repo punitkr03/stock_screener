@@ -214,7 +214,8 @@ def cmd_crude_oil(args) -> None:
 
     if getattr(args, "live", False):
         from crude_oil.daemon import run_poller
-        run_poller()
+        pcr_interval = getattr(args, "interval", 120) or 120
+        run_poller(pcr_interval_seconds=pcr_interval)
         return
 
     if getattr(args, "update", False):
@@ -417,13 +418,13 @@ def main() -> None:
     co_p.add_argument(
         "--live",
         action="store_true",
-        help="Run continuous live polling daemon looking for new data every minute",
+        help="Run continuous live polling daemon looking for new data",
     )
     co_p.add_argument(
         "--interval",
         type=int,
-        default=60,
-        help="Polling interval in seconds for live mode (default: 60)",
+        default=120,
+        help="PCR polling interval in seconds for live mode (default: 120 / 2 minutes)",
     )
     co_p.add_argument(
         "--status",

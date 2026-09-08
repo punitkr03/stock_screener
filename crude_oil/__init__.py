@@ -19,8 +19,8 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from datetime import date
-from config import CRUDE_OIL_INIT_DAYS
+from datetime import date, datetime, timezone
+from config import CRUDE_OIL_INIT_DAYS, CRUDE_OIL_PCR_INTERVAL_SECONDS
 from crude_oil.fetcher import (
     calculate_pcr,
     calculate_pcr_details,
@@ -44,12 +44,53 @@ from crude_oil.db import (
 log = logging.getLogger(__name__)
 
 
-def update_crude_oil_pcr() -> Optional[Dict[str, Any]]:
+def update_crude_oil_pcr(
+    force: bool = False,
+    min_interval_seconds: int = CRUDE_OIL_PCR_INTERVAL_SECONDS,
+    ignore_market_hours: bool = False,
+) -> Optional[Dict[str, Any]]:
     """
     Calculate live Put-Call Ratio (PCR) for the active Crude Oil contract
     and persist into the dedicated crude_oil_pcr_data table.
+
+    Enforces:
+      1. Market hours check: skips calculation and returns latest DB record if market is closed (unless ignore_market_hours=True or force=True).
+      2. Strict 2-minute throttling: skips recalculation and returns latest DB record if last update was < min_interval_seconds ago (default: 120s), unless force=True.
     """
     init_db()
+
+    # 1. Market Hours Guard
+    if not ignore_market_hours and not force and not is_crude_oil_market_open():
+        log.info("MCX Crude Oil market is closed. Skipping PCR calculation.")
+        latest_history = load_pcr_history_from_db(limit=1)
+        return latest_history[0] if latest_history else None
+
+    # 2. Minimum Interval / 2-minute Throttling Guard
+    if not force and min_interval_seconds > 0:
+        latest_history = load_pcr_history_from_db(limit=1)
+        if latest_history:
+            latest_record = latest_history[0]
+            ts_val = latest_record.get("timestamp")
+            if ts_val:
+                if isinstance(ts_val, str):
+                    latest_ts = datetime.fromisoformat(ts_val)
+                else:
+                    latest_ts = ts_val
+                if latest_ts.tzinfo is None:
+                    latest_ts = latest_ts.replace(tzinfo=timezone.utc)
+                else:
+                    latest_ts = latest_ts.astimezone(timezone.utc)
+
+                now_utc = datetime.now(timezone.utc)
+                elapsed = (now_utc - latest_ts).total_seconds()
+                if elapsed < min_interval_seconds:
+                    log.debug(
+                        "Skipping PCR update: last recorded %.1fs ago (< %ss minimum interval). Returning cached record.",
+                        elapsed,
+                        min_interval_seconds,
+                    )
+                    return latest_record
+
     contract = get_active_crude_mini_contract()
     instrument_key = contract.get("instrument_key")
     pcr_record = calculate_pcr_details(underlying_key=instrument_key)

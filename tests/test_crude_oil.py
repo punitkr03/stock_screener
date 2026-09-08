@@ -245,6 +245,67 @@ class TestCrudeOilStrategy(unittest.TestCase):
         with get_db_engine().begin() as conn:
             conn.execute(text("DELETE FROM crude_oil_data WHERE timestamp >= '2099-01-01'"))
 
+    def test_pcr_throttling_and_market_hours(self):
+        """Test 2-minute PCR throttling and market hours enforcement in update_crude_oil_pcr."""
+        from crude_oil import update_crude_oil_pcr
+        from crude_oil.db import get_db_engine
+        from sqlalchemy import text
+        from unittest.mock import patch
+
+        init_db()
+        eng = get_db_engine()
+
+        # Clean up any previous test PCR rows for TEST_KEY
+        with eng.begin() as conn:
+            conn.execute(text("DELETE FROM crude_oil_pcr_data WHERE instrument_key = 'MCX_FO|TEST_KEY'"))
+
+        now_utc = datetime.now(ZoneInfo("UTC"))
+
+        # Save an initial PCR record
+        rec = {
+            "timestamp": now_utc,
+            "symbol": "CRUDEOILM",
+            "instrument_key": "MCX_FO|TEST_KEY",
+            "pcr": 1.75,
+            "pe_oi": 175000.0,
+            "ce_oi": 100000.0,
+        }
+        save_pcr_record_to_db(rec)
+
+        try:
+            # 1. Throttling test: calling update_crude_oil_pcr within 120s should return cached record without calling API
+            with patch("crude_oil.calculate_pcr_details") as mock_calc:
+                cached = update_crude_oil_pcr(force=False, min_interval_seconds=120, ignore_market_hours=True)
+                self.assertIsNotNone(cached)
+                self.assertEqual(cached["pcr"], 1.75)
+                mock_calc.assert_not_called()
+
+            # 2. Market closed test: when market is closed and ignore_market_hours=False, calculation is skipped
+            with patch("crude_oil.is_crude_oil_market_open", return_value=False), patch("crude_oil.calculate_pcr_details") as mock_calc:
+                cached_mc = update_crude_oil_pcr(force=False, ignore_market_hours=False)
+                self.assertIsNotNone(cached_mc)
+                self.assertEqual(cached_mc["pcr"], 1.75)
+                mock_calc.assert_not_called()
+
+            # 3. Force override test: force=True triggers calculation even within 120s window
+            with patch("crude_oil.calculate_pcr_details", return_value={
+                "timestamp": now_utc + timedelta(seconds=1),
+                "symbol": "CRUDEOILM",
+                "instrument_key": "MCX_FO|TEST_KEY",
+                "pcr": 1.80,
+                "pe_oi": 180000.0,
+                "ce_oi": 100000.0,
+            }) as mock_calc:
+                forced = update_crude_oil_pcr(force=True, ignore_market_hours=True)
+                self.assertIsNotNone(forced)
+                self.assertEqual(forced["pcr"], 1.80)
+                mock_calc.assert_called_once()
+        finally:
+            with eng.begin() as conn:
+                conn.execute(text("DELETE FROM crude_oil_pcr_data WHERE instrument_key = 'MCX_FO|TEST_KEY'"))
+
+
 
 if __name__ == "__main__":
     unittest.main()
+

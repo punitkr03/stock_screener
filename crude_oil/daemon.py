@@ -6,8 +6,8 @@ Features:
   1. Market Hours Restriction:
      - MCX Crude Oil operates Monday to Friday from 09:00 AM to 11:30 PM (23:30) IST.
      - Polling and PCR updates pause during weekends and non-market hours.
-  2. Independent 3-Minute Put-Call Ratio (PCR) Poller:
-     - Calculates and stores PCR records in crude_oil_pcr_data every 180 seconds.
+  2. Independent 2-Minute Put-Call Ratio (PCR) Poller:
+     - Calculates and stores PCR records in crude_oil_pcr_data every 120 seconds.
   3. Clock-Aligned 5-Minute Candle Updates with DB Confirmation & Fallback:
      - Triggers at wall-clock 5-minute boundaries (XX:00, XX:05, ... + 5s buffer).
      - Checks PostgreSQL for update confirmation of the newly finalized 5m candle.
@@ -32,6 +32,7 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from config import CRUDE_OIL_PCR_INTERVAL_SECONDS
 from crude_oil import (
     get_crude_oil_status,
     get_latest_candle_timestamp,
@@ -60,7 +61,7 @@ def _signal_handler(sig, frame):
 
 
 def run_poller(
-    pcr_interval_seconds: int = 180,
+    pcr_interval_seconds: int = CRUDE_OIL_PCR_INTERVAL_SECONDS,
     candle_buffer_seconds: int = 5,
     retry_interval_seconds: int = 15,
     tick_interval_seconds: int = 5,
@@ -69,7 +70,7 @@ def run_poller(
     """
     Run persistent polling loop:
       - Enforces MCX market window (09:00 - 23:30 IST, Mon-Fri).
-      - Calculates PCR every `pcr_interval_seconds` (default: 180s = 3min).
+      - Calculates PCR every `pcr_interval_seconds` (default: 120s = 2min).
       - Updates 5m candles on 5-minute clock boundaries with DB confirmation and fallback retries.
     """
     global _running
@@ -132,11 +133,14 @@ def run_poller(
                 market_closed_logged = False
 
             # -----------------------------------------------------------------
-            # 2. Independent 3-Minute PCR Polling
+            # 2. Independent 2-Minute PCR Polling
             # -----------------------------------------------------------------
             if now_epoch - last_pcr_time >= pcr_interval_seconds:
                 try:
-                    pcr_record = update_crude_oil_pcr()
+                    pcr_record = update_crude_oil_pcr(
+                        min_interval_seconds=pcr_interval_seconds,
+                        ignore_market_hours=ignore_market_hours,
+                    )
                     last_pcr_time = now_epoch
                     if pcr_record:
                         log.info(
@@ -148,7 +152,7 @@ def run_poller(
                         )
                 except Exception as pcr_exc:
                     log.error("Error during PCR update: %s", pcr_exc)
-                    # Retry in 30s on failure instead of waiting full 3m
+                    # Retry in 30s on failure instead of waiting full interval
                     last_pcr_time = now_epoch - pcr_interval_seconds + 30
 
             # -----------------------------------------------------------------
@@ -254,8 +258,8 @@ def main():
         "--interval",
         dest="pcr_interval",
         type=int,
-        default=180,
-        help="PCR polling interval in seconds (default: 180 / 3 minutes)",
+        default=CRUDE_OIL_PCR_INTERVAL_SECONDS,
+        help="PCR polling interval in seconds (default: 120 / 2 minutes)",
     )
     parser.add_argument(
         "--buffer",

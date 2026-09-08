@@ -47,13 +47,13 @@ def main():
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run continuous live polling daemon looking for new data every minute",
+        help="Run continuous live polling daemon looking for new data",
     )
     parser.add_argument(
         "--interval",
         type=int,
-        default=60,
-        help="Polling interval in seconds for live mode (default: 60)",
+        default=120,
+        help="PCR polling interval in seconds for live mode (default: 120 / 2 minutes)",
     )
     parser.add_argument(
         "--status",
@@ -70,7 +70,7 @@ def main():
 
     if args.live:
         from crude_oil.daemon import run_poller
-        run_poller(interval_seconds=args.interval)
+        run_poller(pcr_interval_seconds=args.interval)
         return
 
     if args.update:
