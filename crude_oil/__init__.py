@@ -39,6 +39,11 @@ from crude_oil.db import (
     save_candles_to_db,
     save_pcr_record_to_db,
     init_db,
+    get_active_fcm_tokens,
+    get_signal_state,
+    save_signal_state,
+    register_fcm_token,
+    deregister_fcm_token,
 )
 
 log = logging.getLogger(__name__)
@@ -103,6 +108,11 @@ def update_crude_oil_pcr(
             pcr_record.get("pe_oi"),
             pcr_record.get("ce_oi"),
         )
+        # Compute 4-state PCR signal and send FCM notification on state change
+        try:
+            _check_and_notify_signal(pcr_record)
+        except Exception as notify_exc:
+            log.error("Error in PCR signal notification: %s", notify_exc, exc_info=True)
     else:
         log.warning("Could not calculate PCR for %s", instrument_key)
 
@@ -235,7 +245,92 @@ def update_crude_oil_data() -> Dict[str, Any]:
 
 def get_crude_oil_status(limit: int = 10, pcr_limit: int = 50) -> Dict[str, Any]:
     """Return latest signal, PCR history, and breakout status from database."""
+    init_db()
     return get_latest_signal_status(limit=limit, pcr_limit=pcr_limit)
+
+
+# ---------------------------------------------------------------------------
+# Private: PCR signal computation + FCM notification dispatch
+# ---------------------------------------------------------------------------
+
+def _check_and_notify_signal(pcr_record: Dict[str, Any]) -> None:
+    """
+    Compute the 4-state PCR signal after a new PCR record is saved, compare it
+    with the previously stored signal, persist the new state, and send an FCM
+    push notification only when the signal changes.
+
+    Steps
+    -----
+    1. Fetch latest candle's buy_confirmed / sell_confirmed flags.
+    2. Load the 4 most-recent PCR records (newest-first); skip index 0 (the one
+       just written) to get the 3 "before" values for avg_3 calculation.
+    3. Classify the signal via calculate_pcr_signal().
+    4. Load the stored previous signal from crude_oil_signal_state.
+    5. Persist the new signal state (always, for fresh GET /crude-oil/signal responses).
+    6. If signal changed → fetch active FCM tokens → multicast notification.
+    """
+    from crude_oil.signals import calculate_pcr_signal
+    from crude_oil.notifications import send_pcr_signal_notification
+    from config import PCR_STRONG_SIGNAL_THRESHOLD
+
+    # 1. Get latest candle flags
+    status = get_latest_signal_status(limit=1, pcr_limit=0)
+    buy_confirmed  = status.get("buy_confirmed", False)
+    sell_confirmed = status.get("sell_confirmed", False)
+
+    # 2. Fetch 4 rows (newest first): index 0 is the one just written
+    #    Use indices 1-3 as the 3 "before" values
+    pcr_hist = load_pcr_history_from_db(limit=4)
+    prev_pcr_values = [r["pcr"] for r in pcr_hist[1:] if r.get("pcr") is not None]
+
+    current_pcr = pcr_record.get("pcr")
+
+    # 3. Classify
+    signal, avg_3, delta_pct = calculate_pcr_signal(
+        buy_confirmed=buy_confirmed,
+        sell_confirmed=sell_confirmed,
+        current_pcr=current_pcr,
+        pcr_history=prev_pcr_values,
+        threshold_pct=PCR_STRONG_SIGNAL_THRESHOLD,
+    )
+
+    # 4. Load previous signal
+    prev_state  = get_signal_state()
+    prev_signal = prev_state.get("signal", "NONE")
+
+    log.info(
+        "PCR Signal: %s (prev: %s) | PCR: %s | Avg-3: %s | Delta%%: %s",
+        signal,
+        prev_signal,
+        current_pcr,
+        round(avg_3, 4) if avg_3 is not None else None,
+        round(delta_pct, 2) if delta_pct is not None else None,
+    )
+
+    # 5. Always persist the latest computed state
+    save_signal_state(signal, current_pcr, avg_3, delta_pct)
+
+    # 6. Notify only on state change
+    if signal != prev_signal:
+        log.info(
+            "Signal state changed: %s -> %s. Dispatching FCM notifications.",
+            prev_signal,
+            signal,
+        )
+        tokens = get_active_fcm_tokens()
+        if tokens:
+            result = send_pcr_signal_notification(
+                signal=signal,
+                tokens=tokens,
+                current_pcr=current_pcr,
+                avg_pcr_3=avg_3,
+                delta_pct=delta_pct,
+            )
+            log.info("FCM dispatch result: %s", result)
+        else:
+            log.info("No active FCM tokens registered — skipping notification.")
+    else:
+        log.debug("Signal unchanged (%s) — no FCM notification sent.", signal)
 
 
 __all__ = [
@@ -249,4 +344,10 @@ __all__ = [
     "calculate_pcr_details",
     "process_crude_oil_strategy",
     "fetch_5m_candles",
+    # FCM / signal helpers
+    "register_fcm_token",
+    "deregister_fcm_token",
+    "get_active_fcm_tokens",
+    "get_signal_state",
+    "save_signal_state",
 ]

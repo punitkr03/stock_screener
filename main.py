@@ -203,6 +203,10 @@ def cmd_run_all(args) -> None:
     if rc != 0:
         print(f"[ERROR] index analysis failed (exit {rc})")
         sys.exit(rc)
+
+    # Run the full daily stock pipeline after indices
+    cmd_run(args)
+
 def cmd_crude_oil(args) -> None:
     """Run Crude Oil Mini strategy initialization, update, live polling, or status."""
     from crude_oil import get_crude_oil_status, init_crude_oil_data, update_crude_oil_data

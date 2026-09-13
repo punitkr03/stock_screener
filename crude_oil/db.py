@@ -25,6 +25,7 @@ from config import DATABASE_URL
 log = logging.getLogger(__name__)
 
 _engine = None
+_db_initialized = False   # guard — init_db() DDL runs only once per process
 
 
 def get_db_engine():
@@ -36,8 +37,23 @@ def get_db_engine():
 
 
 def init_db(engine=None) -> None:
-    """Create crude_oil_data and crude_oil_pcr_data tables and indexes if not exists."""
+    """
+    Create all required tables and indexes on first call; subsequent calls are instant no-ops.
+
+    The _db_initialized guard prevents the CREATE TABLE IF NOT EXISTS DDL from being
+    re-sent to PostgreSQL on every function call. Without this guard, init_db fires
+    5-6 times per daemon tick because it is called at the top of every helper function.
+
+    Pass an explicit `engine` only when targeting a test database — doing so bypasses
+    the guard and always runs the DDL.
+    """
+    global _db_initialized
     eng = engine or get_db_engine()
+
+    # Skip DDL if already ran in this process (unless a custom engine is supplied)
+    if _db_initialized and engine is None:
+        return
+
     create_sql = """
     CREATE TABLE IF NOT EXISTS crude_oil_data (
         timestamp               TIMESTAMPTZ PRIMARY KEY,
@@ -81,10 +97,31 @@ def init_db(engine=None) -> None:
     );
 
     CREATE INDEX IF NOT EXISTS idx_crude_oil_pcr_timestamp ON crude_oil_pcr_data(timestamp DESC);
+
+    CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token       TEXT NOT NULL UNIQUE,
+        label       TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fcm_tokens_active ON fcm_tokens(is_active);
+
+    CREATE TABLE IF NOT EXISTS crude_oil_signal_state (
+        id              INT PRIMARY KEY DEFAULT 1,
+        signal          TEXT NOT NULL DEFAULT 'NONE',
+        pcr             DOUBLE PRECISION,
+        avg_pcr_3       DOUBLE PRECISION,
+        pcr_delta_pct   DOUBLE PRECISION,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
     """
     with eng.begin() as conn:
         conn.execute(text(create_sql))
-    log.info("crude_oil_data and crude_oil_pcr_data tables initialized.")
+    _db_initialized = True
+    log.info("crude_oil DB tables initialized (fcm_tokens, crude_oil_signal_state, crude_oil_data, crude_oil_pcr_data).")
 
 
 def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
@@ -95,7 +132,6 @@ def save_candles_to_db(df: pd.DataFrame, engine=None) -> int:
     if df.empty:
         return 0
 
-    init_db(engine)
     eng = engine or get_db_engine()
 
     upsert_sql = """
@@ -214,7 +250,6 @@ def save_pcr_record_to_db(record: Dict[str, Any], engine=None) -> bool:
     if not record or record.get("pcr") is None:
         return False
 
-    init_db(engine)
     eng = engine or get_db_engine()
 
     ts = record.get("timestamp")
@@ -264,7 +299,6 @@ def load_pcr_history_from_db(limit: int = 50, engine=None) -> List[Dict[str, Any
     """
     Load recent PCR history records sorted descending (latest first).
     """
-    init_db(engine)
     eng = engine or get_db_engine()
 
     query = f"""
@@ -305,7 +339,6 @@ def get_latest_signal_status(limit: int = 10, pcr_limit: int = 50, engine=None) 
     """
     from datetime import timedelta, timezone
 
-    init_db(engine)
     eng = engine or get_db_engine()
 
     with eng.connect() as conn:
@@ -404,3 +437,133 @@ def get_latest_signal_status(limit: int = 10, pcr_limit: int = 50, engine=None) 
         "pcr_data": pcr_history,
     }
 
+
+# ============================================================================
+# FCM Token management
+# ============================================================================
+
+def register_fcm_token(token: str, label: Optional[str] = None, engine=None) -> bool:
+    """
+    Upsert an FCM device token into the fcm_tokens table.
+
+    If the token already exists and was previously deregistered (is_active=FALSE),
+    it is reactivated.  The label is updated only when supplied.
+
+    Returns
+    -------
+    True  : token was newly inserted
+    False : token already existed (may have been reactivated)
+    """
+    eng = engine or get_db_engine()
+    sql = """
+    INSERT INTO fcm_tokens (token, label, is_active, created_at, updated_at)
+    VALUES (:token, :label, TRUE, NOW(), NOW())
+    ON CONFLICT (token) DO UPDATE
+        SET is_active  = TRUE,
+            label      = COALESCE(EXCLUDED.label, fcm_tokens.label),
+            updated_at = NOW()
+    RETURNING (xmax = 0) AS inserted
+    """
+    with eng.begin() as conn:
+        row = conn.execute(text(sql), {"token": token, "label": label}).fetchone()
+    return bool(row[0]) if row else False
+
+
+def deregister_fcm_token(token: str, engine=None) -> bool:
+    """
+    Soft-delete an FCM token by setting is_active=FALSE.
+
+    Returns
+    -------
+    True  : token found and deactivated
+    False : token not found
+    """
+    eng = engine or get_db_engine()
+    sql = """
+    UPDATE fcm_tokens
+       SET is_active = FALSE,
+           updated_at = NOW()
+     WHERE token = :token
+    RETURNING id
+    """
+    with eng.begin() as conn:
+        row = conn.execute(text(sql), {"token": token}).fetchone()
+    return row is not None
+
+
+def get_active_fcm_tokens(engine=None) -> List[str]:
+    """Return all active FCM token strings ordered by registration time."""
+    eng = engine or get_db_engine()
+    sql = "SELECT token FROM fcm_tokens WHERE is_active = TRUE ORDER BY created_at"
+    with eng.connect() as conn:
+        rows = conn.execute(text(sql)).fetchall()
+    return [r[0] for r in rows]
+
+
+# ============================================================================
+# Signal state management
+# ============================================================================
+
+def get_signal_state(engine=None) -> Dict[str, Any]:
+    """
+    Return the persisted PCR signal state row (id=1), or an empty dict if
+    no state has been saved yet.
+    """
+    eng = engine or get_db_engine()
+    sql = """
+    SELECT signal, pcr, avg_pcr_3, pcr_delta_pct, updated_at
+      FROM crude_oil_signal_state
+     WHERE id = 1
+    """
+    with eng.connect() as conn:
+        row = conn.execute(text(sql)).fetchone()
+    if not row:
+        return {}
+    d = dict(row._mapping)
+    ts = d.get("updated_at")
+    if ts is not None:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        else:
+            ts = ts.astimezone(timezone.utc)
+    return {
+        "signal":        d.get("signal", "NONE"),
+        "pcr":           d.get("pcr"),
+        "avg_pcr_3":     d.get("avg_pcr_3"),
+        "pcr_delta_pct": d.get("pcr_delta_pct"),
+        "updated_at":    ts.isoformat() if ts else None,
+    }
+
+
+def save_signal_state(
+    signal: str,
+    pcr: Optional[float],
+    avg_pcr_3: Optional[float],
+    pcr_delta_pct: Optional[float],
+    engine=None,
+) -> None:
+    """
+    Upsert the single-row signal state record (id always = 1).
+    Called on every PCR update regardless of whether the signal changed.
+    """
+    eng = engine or get_db_engine()
+    sql = """
+    INSERT INTO crude_oil_signal_state
+        (id, signal, pcr, avg_pcr_3, pcr_delta_pct, updated_at)
+    VALUES
+        (1, :signal, :pcr, :avg_pcr_3, :pcr_delta_pct, NOW())
+    ON CONFLICT (id) DO UPDATE
+        SET signal        = EXCLUDED.signal,
+            pcr           = EXCLUDED.pcr,
+            avg_pcr_3     = EXCLUDED.avg_pcr_3,
+            pcr_delta_pct = EXCLUDED.pcr_delta_pct,
+            updated_at    = NOW()
+    """
+    with eng.begin() as conn:
+        conn.execute(text(sql), {
+            "signal":        signal,
+            "pcr":           pcr,
+            "avg_pcr_3":     avg_pcr_3,
+            "pcr_delta_pct": pcr_delta_pct,
+        })
+    log.debug("Signal state saved: %s (PCR: %s, Avg-3: %s, Delta%%: %s)", signal, pcr, avg_pcr_3, pcr_delta_pct)

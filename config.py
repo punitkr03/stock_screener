@@ -78,6 +78,17 @@ CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55
 CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # TradingView UT Bot Key Value: 1.0
 CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "120"))  # Strict 2-minute interval
 
+# ---------------------------------------------------------------------------
+# Firebase Cloud Messaging (FCM)
+# ---------------------------------------------------------------------------
+# Path to the Firebase service account JSON key file.
+# Generate from: Firebase Console → Project Settings → Service Accounts → Generate new private key
+FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+FIREBASE_APP_NAME              = os.getenv("FIREBASE_APP_NAME", "crude-oil-alerts")
+
+# PCR delta threshold (%) above/below the last-3 average to classify a signal as "Strong" vs "Risky"
+# e.g. 2.0 means current_pcr > avg_3 * 1.02 → STRONG_BUY; current_pcr < avg_3 * 0.98 → STRONG_SELL
+PCR_STRONG_SIGNAL_THRESHOLD    = float(os.getenv("PCR_STRONG_SIGNAL_THRESHOLD", "2.0"))
 
 
 # ---------------------------------------------------------------------------

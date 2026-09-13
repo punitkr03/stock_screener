@@ -278,6 +278,40 @@ CREATE INDEX IF NOT EXISTS idx_crude_oil_pcr_timestamp ON crude_oil_pcr_data(tim
 
 
 -- ============================================================================
+-- FCM TOKENS
+-- Registered device push tokens from web/mobile clients.
+-- New tokens are inserted with is_active=TRUE.
+-- Deregistered tokens are soft-deleted (is_active=FALSE).
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    token       TEXT NOT NULL UNIQUE,
+    label       TEXT,                               -- optional: "ios", "web", "android"
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_active ON fcm_tokens(is_active);
+
+-- ============================================================================
+-- CRUDE OIL SIGNAL STATE
+-- Single-row table (id=1 always); upserted on every PCR update.
+-- Stores the most recently computed PCR signal for state-change detection.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS crude_oil_signal_state (
+    id              INT PRIMARY KEY DEFAULT 1,
+    signal          TEXT NOT NULL DEFAULT 'NONE',   -- STRONG_BUY | RISKY_BUY | STRONG_SELL | RISKY_SELL | NONE
+    pcr             DOUBLE PRECISION,
+    avg_pcr_3       DOUBLE PRECISION,
+    pcr_delta_pct   DOUBLE PRECISION,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ============================================================================
 -- MIGRATION (run on existing databases — safe to ignore on fresh installs)
 -- ============================================================================
 --
