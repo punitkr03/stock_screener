@@ -25,7 +25,7 @@ from config import DATABASE_URL
 log = logging.getLogger(__name__)
 
 _engine = None
-_db_initialized = False   # guard — init_db() DDL runs only once per process
+_db_initialized = False   # guard - init_db() DDL runs only once per process
 
 
 def get_db_engine():
@@ -44,7 +44,7 @@ def init_db(engine=None) -> None:
     re-sent to PostgreSQL on every function call. Without this guard, init_db fires
     5-6 times per daemon tick because it is called at the top of every helper function.
 
-    Pass an explicit `engine` only when targeting a test database — doing so bypasses
+    Pass an explicit `engine` only when targeting a test database - doing so bypasses
     the guard and always runs the DDL.
     """
     global _db_initialized
@@ -110,13 +110,18 @@ def init_db(engine=None) -> None:
     CREATE INDEX IF NOT EXISTS idx_fcm_tokens_active ON fcm_tokens(is_active);
 
     CREATE TABLE IF NOT EXISTS crude_oil_signal_state (
-        id              INT PRIMARY KEY DEFAULT 1,
-        signal          TEXT NOT NULL DEFAULT 'NONE',
-        pcr             DOUBLE PRECISION,
-        avg_pcr_3       DOUBLE PRECISION,
-        pcr_delta_pct   DOUBLE PRECISION,
-        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        id                         INT PRIMARY KEY DEFAULT 1,
+        signal                     TEXT NOT NULL DEFAULT 'NONE',
+        pcr                        DOUBLE PRECISION,
+        avg_pcr_3                  DOUBLE PRECISION,
+        pcr_delta_pct              DOUBLE PRECISION,
+        last_unconfirmed_signal    TEXT,
+        last_unconfirmed_ts        TIMESTAMPTZ,
+        updated_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE crude_oil_signal_state ADD COLUMN IF NOT EXISTS last_unconfirmed_signal TEXT;
+    ALTER TABLE crude_oil_signal_state ADD COLUMN IF NOT EXISTS last_unconfirmed_ts TIMESTAMPTZ;
     """
     with eng.begin() as conn:
         conn.execute(text(create_sql))
@@ -511,7 +516,7 @@ def get_signal_state(engine=None) -> Dict[str, Any]:
     """
     eng = engine or get_db_engine()
     sql = """
-    SELECT signal, pcr, avg_pcr_3, pcr_delta_pct, updated_at
+    SELECT signal, pcr, avg_pcr_3, pcr_delta_pct, last_unconfirmed_signal, last_unconfirmed_ts, updated_at
       FROM crude_oil_signal_state
      WHERE id = 1
     """
@@ -526,12 +531,22 @@ def get_signal_state(engine=None) -> Dict[str, Any]:
             ts = ts.replace(tzinfo=timezone.utc)
         else:
             ts = ts.astimezone(timezone.utc)
+
+    u_ts = d.get("last_unconfirmed_ts")
+    if u_ts is not None:
+        if u_ts.tzinfo is None:
+            u_ts = u_ts.replace(tzinfo=timezone.utc)
+        else:
+            u_ts = u_ts.astimezone(timezone.utc)
+
     return {
-        "signal":        d.get("signal", "NONE"),
-        "pcr":           d.get("pcr"),
-        "avg_pcr_3":     d.get("avg_pcr_3"),
-        "pcr_delta_pct": d.get("pcr_delta_pct"),
-        "updated_at":    ts.isoformat() if ts else None,
+        "signal":                  d.get("signal", "NONE"),
+        "pcr":                     d.get("pcr"),
+        "avg_pcr_3":               d.get("avg_pcr_3"),
+        "pcr_delta_pct":           d.get("pcr_delta_pct"),
+        "last_unconfirmed_signal": d.get("last_unconfirmed_signal"),
+        "last_unconfirmed_ts":     u_ts.isoformat() if u_ts else None,
+        "updated_at":              ts.isoformat() if ts else None,
     }
 
 
@@ -567,3 +582,39 @@ def save_signal_state(
             "pcr_delta_pct": pcr_delta_pct,
         })
     log.debug("Signal state saved: %s (PCR: %s, Avg-3: %s, Delta%%: %s)", signal, pcr, avg_pcr_3, pcr_delta_pct)
+
+
+def save_unconfirmed_signal_state(
+    signal: str,
+    candle_ts: datetime | str,
+    engine=None,
+) -> None:
+    """
+    Record the timestamp of the last notified unconfirmed BUY/SELL candle.
+    """
+    eng = engine or get_db_engine()
+    if isinstance(candle_ts, str):
+        ts_val = datetime.fromisoformat(candle_ts)
+    else:
+        ts_val = candle_ts
+    if ts_val.tzinfo is None:
+        ts_val = ts_val.replace(tzinfo=timezone.utc)
+    else:
+        ts_val = ts_val.astimezone(timezone.utc)
+
+    sql = """
+    INSERT INTO crude_oil_signal_state
+        (id, last_unconfirmed_signal, last_unconfirmed_ts, updated_at)
+    VALUES
+        (1, :signal, :ts, NOW())
+    ON CONFLICT (id) DO UPDATE
+        SET last_unconfirmed_signal = EXCLUDED.last_unconfirmed_signal,
+            last_unconfirmed_ts     = EXCLUDED.last_unconfirmed_ts,
+            updated_at              = NOW()
+    """
+    with eng.begin() as conn:
+        conn.execute(text(sql), {
+            "signal": signal,
+            "ts":     ts_val,
+        })
+    log.debug("Unconfirmed signal state recorded: %s at %s", signal, ts_val.isoformat())

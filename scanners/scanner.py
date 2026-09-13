@@ -106,7 +106,7 @@ def load_ohlc_from_db(engine, symbol: str) -> pd.DataFrame:
     Fetch the complete daily candle history for a symbol.
 
     We always load the full history (no LIMIT) because Wilder's ATR and the
-    iterative HA/trailing-stop calculations are path-dependent — truncating
+    iterative HA/trailing-stop calculations are path-dependent - truncating
     history shifts the ATR seed and can flip signals compared to TradingView.
 
     Returns a DataFrame with columns: Date (index), Open, High, Low, Close, Volume.
@@ -265,7 +265,7 @@ def scan_symbol(
     with the correct historical signal_date.
     """
 
-    # 1. Load full OHLC history (no limit — ATR is path-dependent)
+    # 1. Load full OHLC history (no limit - ATR is path-dependent)
     df = load_ohlc_from_db(engine, symbol) if use_db else pd.DataFrame()
 
     if df.empty or len(df) < MIN_CANDLES:
@@ -275,7 +275,7 @@ def scan_symbol(
     # 2. Heikin Ashi
     df = append_heikin_ashi(df)
 
-    # 3. UT Bot (on full history — needed for correct ATR seed)
+    # 3. UT Bot (on full history - needed for correct ATR seed)
     df = compute_ut_bot(
         df,
         atr_period=UT_BOT_ATR_PERIOD,
@@ -302,7 +302,7 @@ def scan_symbol(
 
     for idx, row in sub_df.iterrows():
         signal: str = row["Signal"]
-        # Only store actionable signals — BUY and SELL.
+        # Only store actionable signals - BUY and SELL.
         # NONE signals are not persisted to keep the table clean.
         if signal in (SIGNAL_BUY, SIGNAL_SELL):
             results.append({
@@ -310,7 +310,7 @@ def scan_symbol(
                 "scan_date":     idx.date(),
                 "signal_date":   idx.date(),
                 "signal":        signal,
-                # Use HA OHLC — these are the values the UT Bot signals are computed from.
+                # Use HA OHLC - these are the values the UT Bot signals are computed from.
                 # Raw candles are still stored in daily_candles for reference.
                 "open":          float(row.get("HA_Open",  row["Open"])),
                 "high":          float(row.get("HA_High",  row["High"])),
@@ -321,7 +321,7 @@ def scan_symbol(
             })
 
     # Attach the active_buy to every result row so the DB block can use it.
-    # If no result row exists (today is NONE), we still need to convey it —
+    # If no result row exists (today is NONE), we still need to convey it -
     # add a synthetic NONE row so the active_buy upsert path is reached.
     if active_buy_row is not None:
         ab_idx, ab_row = active_buy_row
@@ -389,10 +389,10 @@ def run_scan(
 
     Parameters
     ----------
-    scan_date : date  — The date to stamp results with (usually today).
-    use_db    : bool  — Persist results to PostgreSQL.
-    symbol    : str   — Optional specific symbol to scan.
-    days      : int   — Number of past days to scan for signals.
+    scan_date : date  - The date to stamp results with (usually today).
+    use_db    : bool  - Persist results to PostgreSQL.
+    symbol    : str   - Optional specific symbol to scan.
+    days      : int   - Number of past days to scan for signals.
     """
 
     engine = get_engine()
@@ -472,7 +472,7 @@ def run_scan(
 
                 # Sync buy_watch_list using the historically correct active BUY.
                 # active_buy is the last BUY from full history that hasn't been
-                # cancelled by a subsequent SELL — regardless of whether today
+                # cancelled by a subsequent SELL - regardless of whether today
                 # fired a new BUY signal.
                 if active_buy is not None:
                     upsert_buy_watch_list(conn, active_buy)
@@ -517,7 +517,7 @@ def run_scan(
     )
 
     # ------------------------------------------------------------------
-    # Export JSON watchlist (buy signals only — confirmed list is written
+    # Export JSON watchlist (buy signals only - confirmed list is written
     # AFTER breakout.py runs, so that is handled by the caller / main.py)
     # ------------------------------------------------------------------
     if use_db:
@@ -527,7 +527,7 @@ def run_scan(
             write_json(signals, OUTPUT_SIGNAL_JSON)
             log.info("  buy_signal_watchlist : %d symbols → %s", len(signals), OUTPUT_SIGNAL_JSON)
         else:
-            log.info("  buy_watch_list is empty — buy_signal_watchlist.json not written.")
+            log.info("  buy_watch_list is empty - buy_signal_watchlist.json not written.")
 
     return results
 

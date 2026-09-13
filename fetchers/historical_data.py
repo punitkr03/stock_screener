@@ -82,7 +82,7 @@ def flatten_download(df):
 
         stock = stock.dropna()
 
-        # Drop zero-volume candles — these are weekend/holiday fills from yfinance
+        # Drop zero-volume candles - these are weekend/holiday fills from yfinance
         # (e.g., Open=High=Low=Close=prev_close, Volume=0) which corrupt HA calculations
         if "Volume" in stock.columns:
             stock = stock[stock["Volume"] > 0]

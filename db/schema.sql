@@ -121,7 +121,7 @@ ON scan_results(symbol);
 -- BUY WATCH LIST
 --
 -- All stocks that currently have a BUY signal from the UT Bot.
--- Unique per (symbol, signal_date) — no duplicates for the same signal event.
+-- Unique per (symbol, signal_date) - no duplicates for the same signal event.
 -- Populated/refreshed by the scanner on every run.
 -- Entries are removed when a SELL signal is generated for that symbol.
 -- ============================================================================
@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS crude_oil_signal_state (
 
 
 -- ============================================================================
--- MIGRATION (run on existing databases — safe to ignore on fresh installs)
+-- MIGRATION (run on existing databases - safe to ignore on fresh installs)
 -- ============================================================================
 --
 -- ALTER TABLE scan_results

@@ -5,8 +5,8 @@ scheduler.py
 ============================================
 
 Runs the full pipeline every trading day at 4:00 PM IST:
-    1. download_history.py  — refreshes OHLC data from yfinance
-    2. scanner.py           — computes UT Bot signals
+    1. download_history.py  - refreshes OHLC data from yfinance
+    2. scanner.py           - computes UT Bot signals
 
 Two modes:
     A. Run as a persistent Python process (python scheduler.py)
@@ -132,7 +132,7 @@ def run_daemon() -> None:
         SCHEDULE_IST_HOUR, SCHEDULE_IST_MINUTE,
     )
 
-    # schedule library uses LOCAL time — log a note if server is not UTC
+    # schedule library uses LOCAL time - log a note if server is not UTC
     schedule.every().monday.at(utc_time).do(run_pipeline)
     schedule.every().tuesday.at(utc_time).do(run_pipeline)
     schedule.every().wednesday.at(utc_time).do(run_pipeline)

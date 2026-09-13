@@ -1,7 +1,7 @@
 """
 main.py
 
-NSE UT Bot Scanner — CLI Entry Point
+NSE UT Bot Scanner - CLI Entry Point
 =====================================
 
 Commands:
@@ -138,11 +138,11 @@ def cmd_schedule(args) -> None:
 def cmd_run(_args) -> None:
     """
     Full daily stock pipeline (order matters):
-      1. download        — fetch recent OHLC
-      2. scan            — run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
-      3. breakout        — confirm breakouts, update confirmed_breakouts
-      4. compute-metrics — compute valuation & solvency metrics for confirmed breakouts
-      5. export          — write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
+      1. download        - fetch recent OHLC
+      2. scan            - run UT Bot, update buy_watch_list  → writes buy_signal_watchlist.json
+      3. breakout        - confirm breakouts, update confirmed_breakouts
+      4. compute-metrics - compute valuation & solvency metrics for confirmed breakouts
+      5. export          - write buy_confirmed_watchlist.json from up-to-date confirmed_breakouts
     """
     from exporters.open_charts import (
         OUTPUT_CONFIRMED_JSON,
@@ -174,7 +174,7 @@ def cmd_run(_args) -> None:
         print(f"[ERROR] fundamental metrics calculation failed (exit {rc})")
         sys.exit(rc)
 
-    # Export confirmed watchlist NOW — after breakout.py has refreshed confirmed_breakouts.
+    # Export confirmed watchlist NOW - after breakout.py has refreshed confirmed_breakouts.
     print("\nExporting buy_confirmed_watchlist.json …")
     confirmed = get_entries("confirmed_breakouts")
     if confirmed:
@@ -182,9 +182,9 @@ def cmd_run(_args) -> None:
         write_to_mongo(confirmed, MONGO_COLLECTION_BUY_CONFIRMED)
         print(f"  buy_confirmed_watchlist : {len(confirmed)} symbols")
     else:
-        print("  confirmed_breakouts is empty — buy_confirmed_watchlist.json not written.")
+        print("  confirmed_breakouts is empty - buy_confirmed_watchlist.json not written.")
 
-    # Export buy signal watchlist — scanner.py has already updated buy_watch_list.
+    # Export buy signal watchlist - scanner.py has already updated buy_watch_list.
     print("\nExporting buy_signal_watchlist.json …")
     signals = get_entries("buy_watch_list")
     if signals:
@@ -192,7 +192,7 @@ def cmd_run(_args) -> None:
         write_to_mongo(signals, MONGO_COLLECTION_BUY_SIGNAL)
         print(f"  buy_signal_watchlist    : {len(signals)} symbols")
     else:
-        print("  buy_watch_list is empty — buy_signal_watchlist.json not written.")
+        print("  buy_watch_list is empty - buy_signal_watchlist.json not written.")
 
     sys.exit(0)
 

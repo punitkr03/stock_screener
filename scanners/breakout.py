@@ -18,18 +18,18 @@ Logic (runs after the daily scan):
            change_pct = (HA_high - HA_low) / HA_low * 100
 
     3. SKIP the symbol if change_pct > MAX_BUY_CANDLE_CHANGE_PCT (default 10%).
-       A candle that swung more than 10% high-to-low is an exhaustion move —
+       A candle that swung more than 10% high-to-low is an exhaustion move -
        chasing it is high risk.
 
     4. Recompute the full HA candle history + UT Bot signals from daily_candles.
 
     5. Two-stage breakout check (both using HA values):
 
-       a) NEXT-DAY (T+1) — strict immediate follow-through:
+       a) NEXT-DAY (T+1) - strict immediate follow-through:
               candle immediately after BUY signal candle HA_Close > buy HA_High
               → Confirmed.
 
-       b) CURRENT-DAY — deferred breakout, today's close above buy level:
+       b) CURRENT-DAY - deferred breakout, today's close above buy level:
               Today's HA_Close > buy HA_High
               AND no SELL signal between the buy signal date and today (inclusive).
               → Confirmed.
@@ -137,7 +137,7 @@ def load_ha_dataframe(conn, symbol: str) -> pd.DataFrame:
     Load the full raw candle history and return a DataFrame with HA + UT Bot
     Signal columns appended.
 
-    HA is iterative — full history is needed for an accurate value.
+    HA is iterative - full history is needed for an accurate value.
     The UT Bot is also path-dependent (Wilder ATR), so we compute both on the
     complete history.
     """
@@ -197,7 +197,7 @@ def check_next_day_breakout(
     appeared anywhere between the buy signal and today (inclusive).
 
     Even though this check anchors on T+1's price, a SELL anywhere in the
-    post-buy window means the trade thesis is invalidated — the historical
+    post-buy window means the trade thesis is invalidated - the historical
     T+1 confirmation must not override a later reversal.
 
     Returns (confirmation_date, confirmed_ha_close) or (None, None).
@@ -214,7 +214,7 @@ def check_next_day_breakout(
     next_row = ha_df.iloc[pos + 1]
     next_ha_close = float(next_row["HA_Close"])
 
-    # Discard if ANY candle after the buy signal carries a SELL — thesis reversed.
+    # Discard if ANY candle after the buy signal carries a SELL - thesis reversed.
     # This mirrors check_current_day_breakout and ensures a later SELL always
     # wins, even when T+1 would otherwise qualify as a valid breakout.
     window = ha_df.iloc[pos + 1:]
@@ -252,7 +252,7 @@ def check_current_day_breakout(
     if window.empty:
         return None, None
 
-    # Check for any SELL signal in this window — if found, breakout is void
+    # Check for any SELL signal in this window - if found, breakout is void
     if SIGNAL_SELL in window["Signal"].values:
         return None, None
 
@@ -351,7 +351,7 @@ def run_breakout(
                 continue
 
             # ----------------------------------------------------------------
-            # 1. BUY candle HA OHLC — read from buy_watch_list
+            # 1. BUY candle HA OHLC - read from buy_watch_list
             #    (HA values stored by the scanner at signal time)
             # ----------------------------------------------------------------
             ha_open  = sig.get("ha_open")
@@ -378,7 +378,7 @@ def run_breakout(
 
             if abs(change_pct) > MAX_BUY_CANDLE_CHANGE_PCT:
                 log.info(
-                    "  %-15s  ⚠️  SKIP — HA buy candle moved %.1f%% (threshold %.1f%%)",
+                    "  %-15s  ⚠️  SKIP - HA buy candle moved %.1f%% (threshold %.1f%%)",
                     sym, change_pct, MAX_BUY_CANDLE_CHANGE_PCT,
                 )
                 skipped_gap += 1
@@ -392,7 +392,7 @@ def run_breakout(
             ha_df = load_ha_dataframe(conn, sym)
 
             if ha_df.empty:
-                log.debug("  %-15s  — no candle data in DB, skipping", sym)
+                log.debug("  %-15s  - no candle data in DB, skipping", sym)
                 skipped_no_data += 1
                 continue
 
@@ -426,7 +426,7 @@ def run_breakout(
             else:
                 not_broken_out += 1
                 log.debug(
-                    "  %-15s  — no breakout  ha_buy_high=%.2f  [buy_date: %s]",
+                    "  %-15s  - no breakout  ha_buy_high=%.2f  [buy_date: %s]",
                     sym, ha_high, buy_sig_date,
                 )
                 # Remove from confirmed_breakouts if previously confirmed but now reversed
@@ -455,7 +455,7 @@ def run_breakout(
         "\n─── Breakout scan complete ──────────────────────────\n"
         "  Evaluated    : %d symbols\n"
         "  ✅ Confirmed  : %d  (added to confirmed_breakouts)\n"
-        "  — Not yet    : %d\n"
+        "  - Not yet    : %d\n"
         "  ⚠️  Gap-skip  : %d  (HA candle range >%.0f%%)\n"
         "  ⚠️  No data   : %d\n"
         "────────────────────────────────────────────────────",

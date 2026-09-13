@@ -231,7 +231,7 @@ def main() -> None:
     print(f"Done. Total candles stored: {total_rows}")
 
     if skipped:
-        print(f"\nSkipped ({len(skipped)} indices — no candles returned):")
+        print(f"\nSkipped ({len(skipped)} indices - no candles returned):")
         for s in skipped:
             print(f"  - {s}")
 

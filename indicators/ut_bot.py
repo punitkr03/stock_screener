@@ -45,22 +45,28 @@ def compute_ut_bot(
     atr_period: int = 55,
     key_value: float = 1.0,
     use_heikin_ashi: bool = True,
+    atr_on_heikin_ashi: bool = False,
 ) -> pd.DataFrame:
     """
-    Compute UT Bot signals on OHLC (or Heikin Ashi) data.
+    Compute UT Bot signals on OHLC (or Heikin Ashi) data following QuantNomad's Pine Script.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Must contain OHLC columns.
-        If ``use_heikin_ashi=True``, also needs HA_Close / HA_High / HA_Low.
+        Must contain OHLC columns (Open/open, High/high, Low/low, Close/close).
+        If ``use_heikin_ashi=True``, also needs HA_Close (and optionally HA_High / HA_Low).
         Otherwise plain Close / High / Low are used.
     atr_period : int
-        ATR look-back period. QuantNomad's default is 1.
+        ATR look-back period (QuantNomad's default is 10 or 1, config default is 55).
     key_value : float
-        Sensitivity multiplier. QuantNomad's default is 3.
+        Sensitivity multiplier (QuantNomad's default is 1.0 or 3.0).
     use_heikin_ashi : bool
-        Whether to drive the trailing stop from Heikin Ashi closes.
+        Whether to drive the trailing stop from Heikin Ashi close prices (src = HA_Close).
+    atr_on_heikin_ashi : bool
+        If False (default, matching QuantNomad's TradingView script on a standard chart),
+        ATR is computed from raw/standard OHLC bars while src uses HA_Close.
+        If True (matching a chart where chart type itself is switched to Heikin Ashi),
+        ATR is computed from Heikin Ashi bars.
 
     Returns
     -------
@@ -72,7 +78,7 @@ def compute_ut_bot(
     df = df.copy()
 
     # ------------------------------------------------------------------
-    # Choose price series
+    # Choose price series for trailing stop comparison (src)
     # ------------------------------------------------------------------
 
     if use_heikin_ashi:
@@ -99,12 +105,11 @@ def compute_ut_bot(
     # ------------------------------------------------------------------
     # True Range → ATR  (Wilder's smoothing = EWM with alpha=1/period)
     #
-    # When use_heikin_ashi=True we use HA_High / HA_Low / HA_Close for TR,
-    # matching TradingView's ta.atr() behaviour when the chart is set to
-    # Heikin Ashi mode (ta.atr reads the displayed OHLC, not raw OHLC).
+    # In QuantNomad's Pine Script (xATR = atr(c)), atr() computes on the chart's
+    # native raw OHLC bars unless the chart type itself is set to Heikin Ashi.
     # ------------------------------------------------------------------
 
-    if use_heikin_ashi:
+    if atr_on_heikin_ashi and use_heikin_ashi:
         atr_close = df["HA_Close"].values
         atr_high  = df["HA_High"].values if "HA_High" in df.columns else df["High"].values
         atr_low   = df["HA_Low"].values  if "HA_Low"  in df.columns else df["Low"].values
@@ -125,7 +130,7 @@ def compute_ut_bot(
         ),
     )
 
-    # Wilder's RMA ATR — matches TradingView's ta.atr() exactly.
+    # Wilder's RMA ATR - matches TradingView's ta.atr() exactly.
     # Initialization: SMA of first atr_period values, then Wilder's smoothing.
     alpha = 1.0 / atr_period
     atr_series = np.zeros(n)
@@ -137,7 +142,7 @@ def compute_ut_bot(
     n_loss = key_value * atr_series
 
     # ------------------------------------------------------------------
-    # Trailing stop (iterative — cannot be vectorised due to self-reference)
+    # Trailing stop (iterative - cannot be vectorised due to self-reference)
     # ------------------------------------------------------------------
 
     trailing_stop = np.zeros(n)

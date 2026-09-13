@@ -229,14 +229,14 @@ def main():
         write_json(entries_to_write, args.output)
         write_to_mongo(entries_to_write, MONGO_COLLECTION_BUY_CONFIRMED)
     else:
-        print("No symbols found in 'confirmed_breakouts' — skipping buy_confirmed_watchlist.json.")
+        print("No symbols found in 'confirmed_breakouts' - skipping buy_confirmed_watchlist.json.")
         entries_to_write = []
 
     if signal_entries:
         write_json(signal_entries, args.output_signal)
         write_to_mongo(signal_entries, MONGO_COLLECTION_BUY_SIGNAL)
     else:
-        print("No symbols found in 'buy_watch_list' — skipping buy_signal_watchlist.json.")
+        print("No symbols found in 'buy_watch_list' - skipping buy_signal_watchlist.json.")
 
     print(
         f"\nSummary:\n"

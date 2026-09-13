@@ -14,16 +14,20 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import Any
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
-# Paths
+# Paths & Environment
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable
+
+# Ensure latest .env is loaded
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -34,7 +38,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — allow all origins so the frontend can call this freely.
+# CORS - allow all origins so the frontend can call this freely.
 # Restrict `allow_origins` to your frontend URL in production.
 app.add_middleware(
     CORSMiddleware,
@@ -403,7 +407,7 @@ def test_notification_endpoint(req: TestNotificationRequest):
     """
     Send a test FCM push notification to a **single** token.
 
-    Does NOT register or store the token — purely for verifying that Firebase
+    Does NOT register or store the token - purely for verifying that Firebase
     credentials are valid and the device token is reachable.
 
     Returns 502 with error details if the FCM push fails.
@@ -438,3 +442,124 @@ def test_notification_endpoint(req: TestNotificationRequest):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Notification test error: {exc}")
+
+
+class TestTelegramNotificationRequest(BaseModel):
+    notification_type: str = "unconfirmed"
+    signal: str = "BUY"
+    custom_text: str | None = None
+
+
+@app.post("/crude-oil/notifications/test-telegram", tags=["Telegram Alerts"])
+def test_telegram_notification_endpoint(req: TestTelegramNotificationRequest):
+    """
+    Send a test Telegram notification using TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from environment.
+    Supports unconfirmed trigger, confirmed 4-state PCR alert, or custom text.
+    """
+    try:
+        from crude_oil.notifications import (
+            send_telegram_message,
+            send_unconfirmed_signal_notification,
+            send_confirmed_pcr_notification,
+        )
+        from crude_oil.db import load_candles_from_db, load_pcr_history_from_db
+        from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+        load_dotenv(PROJECT_ROOT / ".env", override=True)
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_API") or TELEGRAM_BOT_TOKEN
+        chat_id = os.getenv("TELEGRAM_CHAT_ID") or TELEGRAM_CHAT_ID
+
+        if not bot_token or not chat_id:
+            raise HTTPException(
+                status_code=400,
+                detail="TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in the environment (.env).",
+            )
+
+        candles_df = load_candles_from_db(limit=1)
+        latest_candle = candles_df.to_dict("records")[0] if not candles_df.empty else {
+            "timestamp": "2026-09-11T15:55:00+00:00",
+            "close": 9518.0,
+            "ha_close": 9505.25,
+            "ha_high": 9519.0,
+            "ha_low": 9490.0,
+            "trailing_stop": 9472.71,
+        }
+
+        pcr_hist = load_pcr_history_from_db(limit=4)
+        if not pcr_hist:
+            pcr_hist = [
+                {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 1.85, "pe_oi": 185000, "ce_oi": 100000},
+                {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 1.75, "pe_oi": 175000, "ce_oi": 100000},
+                {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 1.72, "pe_oi": 172000, "ce_oi": 100000},
+                {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 1.69, "pe_oi": 169000, "ce_oi": 100000},
+            ]
+
+        if req.notification_type == "custom":
+            text = req.custom_text or "🛢️ Test notification from Crude Oil Bot"
+            res = send_telegram_message(text=text)
+        elif req.notification_type == "unconfirmed":
+            res = send_unconfirmed_signal_notification(
+                signal=req.signal or "BUY",
+                candle=latest_candle,
+            )
+        else:
+            # Confirmed 4-state PCR alert
+            sig = req.signal.upper()
+            if sig == "STRONG_BUY":
+                pcr_data = [
+                    {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 1.85, "pe_oi": 185000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 1.75, "pe_oi": 175000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 1.72, "pe_oi": 172000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 1.69, "pe_oi": 169000, "ce_oi": 100000},
+                ]
+                avg_3 = 1.7200
+                delta = 7.56
+            elif sig == "RISKY_BUY":
+                pcr_data = [
+                    {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 1.65, "pe_oi": 165000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 1.75, "pe_oi": 175000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 1.72, "pe_oi": 172000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 1.69, "pe_oi": 169000, "ce_oi": 100000},
+                ]
+                avg_3 = 1.7200
+                delta = -4.07
+            elif sig == "STRONG_SELL":
+                pcr_data = [
+                    {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 0.65, "pe_oi": 65000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 0.72, "pe_oi": 72000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 0.75, "pe_oi": 75000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 0.78, "pe_oi": 78000, "ce_oi": 100000},
+                ]
+                avg_3 = 0.7500
+                delta = -13.33
+            elif sig == "RISKY_SELL":
+                pcr_data = [
+                    {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 0.80, "pe_oi": 80000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 0.72, "pe_oi": 72000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 0.75, "pe_oi": 75000, "ce_oi": 100000},
+                    {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 0.78, "pe_oi": 78000, "ce_oi": 100000},
+                ]
+                avg_3 = 0.7500
+                delta = 6.67
+            else:
+                pcr_data = pcr_hist
+                avg_3 = 1.7200
+                delta = 7.56
+
+            res = send_confirmed_pcr_notification(
+                signal=req.signal,
+                candle=latest_candle,
+                pcr_records=pcr_data,
+                avg_pcr_3=avg_3,
+                delta_pct=delta,
+            )
+
+        if not res.get("sent", False) and "telegram" in res and not res["telegram"].get("sent", False):
+            raise HTTPException(status_code=502, detail=res)
+
+        return {"message": "Telegram test notification dispatched successfully.", "result": res}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Telegram test error: {exc}")

@@ -58,7 +58,7 @@ def write_collection(collection_name: str, data: list[dict] | dict) -> int:
     documents: list[dict] = data if isinstance(data, list) else [data]
 
     if not documents:
-        print(f"[MongoDB] '{collection_name}': no documents to insert — skipping")
+        print(f"[MongoDB] '{collection_name}': no documents to insert - skipping")
         return 0
 
     # ── 3. Remove any stale _id fields (safety guard for re-used dicts) ───────

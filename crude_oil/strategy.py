@@ -22,7 +22,7 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from config import CRUDE_OIL_UT_BOT_ATR_PERIOD, CRUDE_OIL_UT_BOT_KEY_VALUE
+from config import CRUDE_OIL_UT_BOT_ATR_PERIOD, CRUDE_OIL_UT_BOT_KEY_VALUE, CRUDE_OIL_UT_BOT_ATR_ON_HA
 from indicators.heikin_ashi import append_heikin_ashi
 from indicators.ut_bot import SIGNAL_BUY, SIGNAL_NONE, SIGNAL_SELL, compute_ut_bot
 
@@ -34,6 +34,7 @@ def process_crude_oil_strategy(
     current_pcr: Optional[float] = None,
     atr_period: int = CRUDE_OIL_UT_BOT_ATR_PERIOD,
     key_value: float = CRUDE_OIL_UT_BOT_KEY_VALUE,
+    atr_on_heikin_ashi: bool = CRUDE_OIL_UT_BOT_ATR_ON_HA,
 ) -> pd.DataFrame:
 
     """
@@ -49,6 +50,9 @@ def process_crude_oil_strategy(
         ATR lookback period (default from config: 55).
     key_value : float
         Sensitivity multiplier for UT Bot (default from config: 1.0).
+    atr_on_heikin_ashi : bool
+        If False (default, QuantNomad Pine Script standard), computes ATR on raw OHLC while
+        using HA_Close for trailing stop crossover. If True, computes ATR on Heikin Ashi bars.
 
     Returns
     -------
@@ -95,6 +99,7 @@ def process_crude_oil_strategy(
             atr_period=atr_period,
             key_value=key_value,
             use_heikin_ashi=True,
+            atr_on_heikin_ashi=atr_on_heikin_ashi,
         )
 
     # 3. Compute Breakout Confirmation for both BUY & SELL (chronological progression)

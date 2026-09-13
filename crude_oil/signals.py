@@ -38,7 +38,7 @@ SIGNAL_STRONG_SELL = "STRONG_SELL"
 SIGNAL_RISKY_SELL  = "RISKY_SELL"
 SIGNAL_NONE        = "NONE"
 
-# All valid signal values — used for input validation in the API layer
+# All valid signal values - used for input validation in the API layer
 ALL_SIGNALS = (
     SIGNAL_STRONG_BUY,
     SIGNAL_RISKY_BUY,
@@ -57,7 +57,7 @@ def calculate_pcr_signal(
     sell_confirmed: bool,
     current_pcr: Optional[float],
     pcr_history: list[float],
-    threshold_pct: float = 2.0,
+    threshold_pct: float = 0.0,
 ) -> tuple[str, Optional[float], Optional[float]]:
     """
     Classify the current market state into one of the 4 PCR signals.
@@ -69,11 +69,11 @@ def calculate_pcr_signal(
     sell_confirmed  : True when the UT Bot sell breakout is confirmed.
     current_pcr     : The PCR value that was just recorded / fetched.
     pcr_history     : List of previously stored PCR values, newest first,
-                      *excluding* the current reading.  Only the first 3
+                      *excluding* the current reading. Only the first 3
                       elements are used for the average.
     threshold_pct   : Minimum absolute percentage delta vs the 3-value average
                       required to classify as "Strong" instead of "Risky".
-                      Default: 2.0  (i.e. 2 %).
+                      Default: 0.0 (i.e. strictly > avg_3 for Buy, < avg_3 for Sell).
 
     Returns
     -------
@@ -98,13 +98,15 @@ def calculate_pcr_signal(
 
     # Classify
     if buy_confirmed:
-        if delta_pct is not None and delta_pct > threshold_pct:
-            return SIGNAL_STRONG_BUY, avg_3, delta_pct
+        if avg_3 is not None and current_pcr is not None:
+            if current_pcr > avg_3 * (1 + threshold_pct / 100):
+                return SIGNAL_STRONG_BUY, avg_3, delta_pct
         return SIGNAL_RISKY_BUY, avg_3, delta_pct
 
     # sell_confirmed must be True here
-    if delta_pct is not None and delta_pct < -threshold_pct:
-        return SIGNAL_STRONG_SELL, avg_3, delta_pct
+    if avg_3 is not None and current_pcr is not None:
+        if current_pcr < avg_3 * (1 - threshold_pct / 100):
+            return SIGNAL_STRONG_SELL, avg_3, delta_pct
     return SIGNAL_RISKY_SELL, avg_3, delta_pct
 
 

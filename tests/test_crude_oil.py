@@ -98,6 +98,28 @@ class TestCrudeOilStrategy(unittest.TestCase):
         self.assertTrue(set(df_out["buy_confirmed"].unique()).issubset({True, False}))
         self.assertTrue(set(df_out["sell_confirmed"].unique()).issubset({True, False}))
 
+    def test_quantnomad_pine_script_compatibility(self):
+        """Test that atr_on_heikin_ashi toggle controls whether ATR is computed on raw OHLC or HA bars."""
+        from indicators.ut_bot import compute_ut_bot
+        from indicators.heikin_ashi import append_heikin_ashi
+
+        df = self.sample_df.copy()
+        col_mapping = {"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
+        for lower_c, title_c in col_mapping.items():
+            df[title_c] = df[lower_c]
+
+        df_ha = append_heikin_ashi(df)
+
+        # Default: atr_on_heikin_ashi=False (QuantNomad standard)
+        res_raw_atr = compute_ut_bot(df_ha, atr_period=10, key_value=1.0, use_heikin_ashi=True, atr_on_heikin_ashi=False)
+        self.assertIn("Signal", res_raw_atr.columns)
+        self.assertIn("TrailingStop", res_raw_atr.columns)
+
+        # Toggle: atr_on_heikin_ashi=True (HA chart mode)
+        res_ha_atr = compute_ut_bot(df_ha, atr_period=10, key_value=1.0, use_heikin_ashi=True, atr_on_heikin_ashi=True)
+        self.assertIn("Signal", res_ha_atr.columns)
+        self.assertIn("TrailingStop", res_ha_atr.columns)
+
     def test_breakout_logic_progression(self):
         """Test that buy_confirmed and sell_confirmed flags exist and evaluate chronologically."""
         base_time = datetime(2026, 9, 1, 9, 0)
@@ -304,8 +326,93 @@ class TestCrudeOilStrategy(unittest.TestCase):
             with eng.begin() as conn:
                 conn.execute(text("DELETE FROM crude_oil_pcr_data WHERE instrument_key = 'MCX_FO|TEST_KEY'"))
 
+    def test_pcr_signal_classification_logic(self):
+        """Test the 4-state PCR classification: STRONG_BUY, RISKY_BUY, STRONG_SELL, RISKY_SELL."""
+        from crude_oil.signals import calculate_pcr_signal
+
+        prev_3 = [1.50, 1.45, 1.40]  # avg = 1.45
+
+        # 1. Buy confirmed & current_pcr > avg_3 -> STRONG_BUY
+        sig, avg, delta = calculate_pcr_signal(buy_confirmed=True, sell_confirmed=False, current_pcr=1.55, pcr_history=prev_3)
+        self.assertEqual(sig, "STRONG_BUY")
+        self.assertAlmostEqual(avg, 1.45)
+        self.assertGreater(delta, 0)
+
+        # 2. Buy confirmed & current_pcr <= avg_3 -> RISKY_BUY
+        sig, avg, delta = calculate_pcr_signal(buy_confirmed=True, sell_confirmed=False, current_pcr=1.40, pcr_history=prev_3)
+        self.assertEqual(sig, "RISKY_BUY")
+        self.assertAlmostEqual(avg, 1.45)
+        self.assertLess(delta, 0)
+
+        # 3. Sell confirmed & current_pcr < avg_3 -> STRONG_SELL
+        sig, avg, delta = calculate_pcr_signal(buy_confirmed=False, sell_confirmed=True, current_pcr=1.35, pcr_history=prev_3)
+        self.assertEqual(sig, "STRONG_SELL")
+        self.assertAlmostEqual(avg, 1.45)
+        self.assertLess(delta, 0)
+
+        # 4. Sell confirmed & current_pcr >= avg_3 -> RISKY_SELL
+        sig, avg, delta = calculate_pcr_signal(buy_confirmed=False, sell_confirmed=True, current_pcr=1.50, pcr_history=prev_3)
+        self.assertEqual(sig, "RISKY_SELL")
+        self.assertAlmostEqual(avg, 1.45)
+        self.assertGreater(delta, 0)
+
+        # 5. Neither confirmed -> NONE
+        sig, avg, delta = calculate_pcr_signal(buy_confirmed=False, sell_confirmed=False, current_pcr=1.55, pcr_history=prev_3)
+        self.assertEqual(sig, "NONE")
+
+    def test_telegram_message_builders(self):
+        """Test Telegram message generation for unconfirmed and confirmed signals."""
+        from crude_oil.notifications import build_unconfirmed_signal_message, build_confirmed_pcr_signal_message
+
+        candle = {
+            "timestamp": datetime(2026, 9, 11, 15, 55, tzinfo=ZoneInfo("UTC")),
+            "close": 9518.0,
+            "ha_close": 9505.25,
+            "ha_high": 9519.0,
+            "ha_low": 9490.0,
+            "trailing_stop": 9472.71,
+        }
+        pcr_records = [
+            {"timestamp": "2026-09-11T16:00:00+00:00", "pcr": 1.85, "pe_oi": 185000, "ce_oi": 100000},
+            {"timestamp": "2026-09-11T15:58:00+00:00", "pcr": 1.75, "pe_oi": 175000, "ce_oi": 100000},
+            {"timestamp": "2026-09-11T15:56:00+00:00", "pcr": 1.72, "pe_oi": 172000, "ce_oi": 100000},
+            {"timestamp": "2026-09-11T15:54:00+00:00", "pcr": 1.69, "pe_oi": 169000, "ce_oi": 100000},
+        ]
+
+        # Stage 1: Unconfirmed message
+        unconf_msg = build_unconfirmed_signal_message("BUY", candle)
+        self.assertIn("BUY SIGNAL (Waiting Confirmation)", unconf_msg)
+        self.assertIn("Waiting for breakout confirmation", unconf_msg)
+        self.assertIn("21:25:00 IST", unconf_msg)
+        self.assertIn("9,518.00", unconf_msg)
+
+        # Stage 2: Confirmed message
+        conf_msg = build_confirmed_pcr_signal_message("STRONG_BUY", candle, pcr_records, avg_pcr_3=1.72, delta_pct=7.56)
+        self.assertIn("STRONG BUY", conf_msg)
+        self.assertIn("LAST 4 PCR READINGS", conf_msg)
+        self.assertIn("21:30:00 IST", conf_msg)  # 16:00 UTC in IST
+        self.assertIn("1.8500", conf_msg)
+
+    def test_telegram_message_sending(self):
+        """Test sending Telegram messages with mocked HTTP requests."""
+        from unittest.mock import patch, MagicMock
+        from crude_oil.notifications import send_telegram_message
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"ok": True, "result": {"message_id": 123}}
+
+        with patch("requests.post", return_value=mock_resp) as mock_post:
+            res = send_telegram_message("Test message", bot_token="MOCK_TOKEN", chat_id="123456")
+            self.assertTrue(res["sent"])
+            mock_post.assert_called_once()
+            args, kwargs = mock_post.call_args
+            self.assertIn("https://api.telegram.org/botMOCK_TOKEN/sendMessage", args[0])
+            self.assertEqual(kwargs["data"]["chat_id"], "123456")
+            self.assertEqual(kwargs["data"]["text"], "Test message")
 
 
 if __name__ == "__main__":
     unittest.main()
+
 

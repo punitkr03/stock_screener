@@ -1,14 +1,14 @@
-# Stock Screener — API Server
+# Stock Screener - API Server
 
 A lightweight FastAPI server that exposes a `/refresh` endpoint to trigger the daily data pipeline.
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Health check |
-| `POST` | `/refresh` | Start the refresh pipeline in the background |
-| `GET` | `/refresh/status` | Poll the current pipeline status |
+| Method | Path              | Description                                  |
+| ------ | ----------------- | -------------------------------------------- |
+| `GET`  | `/`               | Health check                                 |
+| `POST` | `/refresh`        | Start the refresh pipeline in the background |
+| `GET`  | `/refresh/status` | Poll the current pipeline status             |
 
 Interactive docs available at `http://localhost:8000/docs`.
 
@@ -45,7 +45,9 @@ const data = await res.json();
 // { message: "...", started_at: "..." }
 
 // Poll status
-const status = await fetch("http://localhost:8000/refresh/status").then(r => r.json());
+const status = await fetch("http://localhost:8000/refresh/status").then((r) =>
+  r.json(),
+);
 // { running: true/false, last_status: "success"|"error"|null, ... }
 ```
 

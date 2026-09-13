@@ -25,7 +25,7 @@ BUY_CONFIRMED_JSON = os.getenv("BUY_CONFIRMED_JSON", os.path.join(DATA_DIR, "buy
 BUY_SIGNAL_JSON    = os.getenv("BUY_SIGNAL_JSON", os.path.join(DATA_DIR, "buy_signal_watchlist.json"))
 
 # Load variables from .env (no-op if the file doesn't exist)
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
 
 # ---------------------------------------------------------------------------
 # PostgreSQL Database
@@ -52,7 +52,7 @@ MONGO_COLLECTION_INDICES       = "indices_data"
 # yfinance download settings
 # ---------------------------------------------------------------------------
 
-DOWNLOAD_PERIOD = "2y"    # history window — 2 years gives ATR(55) enough warmup to match TradingView
+DOWNLOAD_PERIOD = "2y"    # history window - 2 years gives ATR(55) enough warmup to match TradingView
 BATCH_SIZE      = 50       # symbols per yfinance batch request
 AUTO_ADJUST     = False    # keep raw OHLC (splits/divs not adjusted)
 
@@ -76,7 +76,14 @@ CRUDE_OIL_CANDLE_INTERVAL     = "5"     # 5-minute candles
 CRUDE_OIL_INIT_DAYS           = 30    # fallback max days
 CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55"))    # TradingView UT Bot ATR period: 10
 CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # TradingView UT Bot Key Value: 1.0
+CRUDE_OIL_UT_BOT_ATR_ON_HA    = os.getenv("CRUDE_OIL_UT_BOT_ATR_ON_HA", "false").lower() == "true"  # False = QuantNomad standard (raw OHLC ATR)
 CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "120"))  # Strict 2-minute interval
+
+# ---------------------------------------------------------------------------
+# Telegram Bot Alerts
+# ---------------------------------------------------------------------------
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_API", "")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ---------------------------------------------------------------------------
 # Firebase Cloud Messaging (FCM)
@@ -87,8 +94,8 @@ FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 FIREBASE_APP_NAME              = os.getenv("FIREBASE_APP_NAME", "crude-oil-alerts")
 
 # PCR delta threshold (%) above/below the last-3 average to classify a signal as "Strong" vs "Risky"
-# e.g. 2.0 means current_pcr > avg_3 * 1.02 → STRONG_BUY; current_pcr < avg_3 * 0.98 → STRONG_SELL
-PCR_STRONG_SIGNAL_THRESHOLD    = float(os.getenv("PCR_STRONG_SIGNAL_THRESHOLD", "2.0"))
+# e.g. 0.0 means current_pcr > avg_3 → STRONG_BUY; current_pcr < avg_3 → STRONG_SELL
+PCR_STRONG_SIGNAL_THRESHOLD    = float(os.getenv("PCR_STRONG_SIGNAL_THRESHOLD", "0.0"))
 
 
 # ---------------------------------------------------------------------------

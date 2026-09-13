@@ -42,6 +42,7 @@ from crude_oil.db import (
     get_active_fcm_tokens,
     get_signal_state,
     save_signal_state,
+    save_unconfirmed_signal_state,
     register_fcm_token,
     deregister_fcm_token,
 )
@@ -240,7 +241,21 @@ def update_crude_oil_data() -> Dict[str, Any]:
     # Save to DB
     save_candles_to_db(processed)
 
-    return get_latest_signal_status()
+    status = get_latest_signal_status()
+
+    # 1. Check for unconfirmed UT Bot BUY/SELL trigger on latest candle
+    try:
+        _check_and_notify_candle_signal(status)
+    except Exception as candle_notif_exc:
+        log.error("Error in unconfirmed candle signal notification: %s", candle_notif_exc, exc_info=True)
+
+    # 2. Check for confirmed breakout / PCR state update
+    try:
+        _check_and_notify_signal(pcr_record=None)
+    except Exception as conf_notif_exc:
+        log.error("Error in confirmed PCR signal notification: %s", conf_notif_exc, exc_info=True)
+
+    return status
 
 
 def get_crude_oil_status(limit: int = 10, pcr_limit: int = 50) -> Dict[str, Any]:
@@ -250,42 +265,74 @@ def get_crude_oil_status(limit: int = 10, pcr_limit: int = 50) -> Dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
-# Private: PCR signal computation + FCM notification dispatch
+# Private: Telegram & FCM notification dispatch
 # ---------------------------------------------------------------------------
 
-def _check_and_notify_signal(pcr_record: Dict[str, Any]) -> None:
+def _check_and_notify_candle_signal(status: Dict[str, Any]) -> None:
     """
-    Compute the 4-state PCR signal after a new PCR record is saved, compare it
-    with the previously stored signal, persist the new state, and send an FCM
-    push notification only when the signal changes.
+    Check if the latest completed 5-minute candle produced a UT Bot BUY or SELL
+    signal. If so, send Stage 1 unconfirmed Telegram alert (waiting for confirmation).
+    Deduplicates against the last recorded unconfirmed signal timestamp in DB.
+    """
+    from crude_oil.notifications import send_unconfirmed_signal_notification
 
-    Steps
-    -----
-    1. Fetch latest candle's buy_confirmed / sell_confirmed flags.
-    2. Load the 4 most-recent PCR records (newest-first); skip index 0 (the one
-       just written) to get the 3 "before" values for avg_3 calculation.
-    3. Classify the signal via calculate_pcr_signal().
-    4. Load the stored previous signal from crude_oil_signal_state.
-    5. Persist the new signal state (always, for fresh GET /crude-oil/signal responses).
-    6. If signal changed → fetch active FCM tokens → multicast notification.
+    latest = status.get("latest_candle")
+    if not latest:
+        return
+
+    sig = latest.get("signal", "NONE")
+    if sig not in ("BUY", "SELL"):
+        return
+
+    candle_ts = latest.get("candle_start_time") or latest.get("timestamp")
+    if not candle_ts:
+        return
+
+    state = get_signal_state()
+    last_ts = state.get("last_unconfirmed_ts")
+
+    # If this candle was already notified, skip
+    if last_ts and str(last_ts) == str(candle_ts):
+        log.debug("Unconfirmed %s signal for candle %s already notified. Skipping.", sig, candle_ts)
+        return
+
+    log.info("New unconfirmed %s signal detected on candle %s. Dispatching Telegram alert.", sig, candle_ts)
+    res = send_unconfirmed_signal_notification(signal=sig, candle=latest)
+    log.info("Unconfirmed signal Telegram alert result: %s", res)
+
+    save_unconfirmed_signal_state(signal=sig, candle_ts=candle_ts)
+
+
+def _check_and_notify_signal(pcr_record: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Compute the 4-state PCR signal (STRONG_BUY / RISKY_BUY / STRONG_SELL / RISKY_SELL / NONE).
+    If confirmed signal state changes, send Stage 2 Telegram alert (with last 4 PCR readings in IST)
+    and FCM push notification.
     """
     from crude_oil.signals import calculate_pcr_signal
-    from crude_oil.notifications import send_pcr_signal_notification
+    from crude_oil.notifications import send_confirmed_pcr_notification
     from config import PCR_STRONG_SIGNAL_THRESHOLD
 
-    # 1. Get latest candle flags
+    # 1. Get latest candle status
     status = get_latest_signal_status(limit=1, pcr_limit=0)
     buy_confirmed  = status.get("buy_confirmed", False)
     sell_confirmed = status.get("sell_confirmed", False)
+    latest_candle  = status.get("latest_candle") or {}
 
-    # 2. Fetch 4 rows (newest first): index 0 is the one just written
-    #    Use indices 1-3 as the 3 "before" values
+    # 2. Fetch last 4 PCR rows (newest first)
     pcr_hist = load_pcr_history_from_db(limit=4)
-    prev_pcr_values = [r["pcr"] for r in pcr_hist[1:] if r.get("pcr") is not None]
+    if not pcr_hist:
+        log.debug("No PCR history available in DB to compute 4-state signal.")
+        return
 
-    current_pcr = pcr_record.get("pcr")
+    current_pcr = pcr_record.get("pcr") if pcr_record else pcr_hist[0].get("pcr")
+    # Previous 3 values for average
+    if pcr_record:
+        prev_pcr_values = [r["pcr"] for r in pcr_hist[1:] if r.get("pcr") is not None]
+    else:
+        prev_pcr_values = [r["pcr"] for r in pcr_hist[1:4] if r.get("pcr") is not None]
 
-    # 3. Classify
+    # 3. Classify 4-state signal
     signal, avg_3, delta_pct = calculate_pcr_signal(
         buy_confirmed=buy_confirmed,
         sell_confirmed=sell_confirmed,
@@ -310,27 +357,25 @@ def _check_and_notify_signal(pcr_record: Dict[str, Any]) -> None:
     # 5. Always persist the latest computed state
     save_signal_state(signal, current_pcr, avg_3, delta_pct)
 
-    # 6. Notify only on state change
-    if signal != prev_signal:
+    # 6. Notify only on state change (e.g., NONE -> STRONG_BUY, RISKY_BUY -> STRONG_BUY, etc.)
+    if signal != prev_signal and signal != "NONE":
         log.info(
-            "Signal state changed: %s -> %s. Dispatching FCM notifications.",
+            "Signal state changed: %s -> %s. Dispatching Telegram & FCM notifications.",
             prev_signal,
             signal,
         )
         tokens = get_active_fcm_tokens()
-        if tokens:
-            result = send_pcr_signal_notification(
-                signal=signal,
-                tokens=tokens,
-                current_pcr=current_pcr,
-                avg_pcr_3=avg_3,
-                delta_pct=delta_pct,
-            )
-            log.info("FCM dispatch result: %s", result)
-        else:
-            log.info("No active FCM tokens registered — skipping notification.")
+        result = send_confirmed_pcr_notification(
+            signal=signal,
+            candle=latest_candle,
+            pcr_records=pcr_hist,
+            avg_pcr_3=avg_3,
+            delta_pct=delta_pct,
+            tokens=tokens,
+        )
+        log.info("Confirmed signal dispatch result: %s", result)
     else:
-        log.debug("Signal unchanged (%s) — no FCM notification sent.", signal)
+        log.debug("Signal unchanged (%s) - no notification sent.", signal)
 
 
 __all__ = [
@@ -344,10 +389,11 @@ __all__ = [
     "calculate_pcr_details",
     "process_crude_oil_strategy",
     "fetch_5m_candles",
-    # FCM / signal helpers
+    # FCM / signal / Telegram helpers
     "register_fcm_token",
     "deregister_fcm_token",
     "get_active_fcm_tokens",
     "get_signal_state",
     "save_signal_state",
+    "save_unconfirmed_signal_state",
 ]

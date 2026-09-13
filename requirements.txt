@@ -1,4 +1,4 @@
-# NSE UT Bot Scanner — Python Dependencies
+# NSE UT Bot Scanner - Python Dependencies
 # Install with: pip install -r requirements.txt
 
 # Data download
