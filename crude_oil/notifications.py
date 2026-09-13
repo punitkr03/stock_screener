@@ -143,7 +143,7 @@ def build_unconfirmed_signal_message(
     msg = (
         f"🚨{emoji} <b>{action} SIGNAL (Waiting Confirmation)</b> - CRUDE OIL 🛢️\n\n"
         f"<b>Signal:</b> {emoji} <b>{action}</b> (UT Bot Trigger)\n"
-        f"<b>Candle Time:</b> <code>{ist_str}</code>\n"
+        f"<b>Candle Time:</b> <code>{ist_str}</code>\n\n"
         f"⏳ <i>Waiting for breakout confirmation...</i>\n"
     )
     return msg
@@ -219,7 +219,7 @@ def build_confirmed_pcr_signal_message(
         f"{emoji} <b>{label}</b> - CRUDE OIL 🛢️\n\n"
         f"<b>Action:</b> {emoji} <b>{label}</b>\n"
         f"<b>Candle Time:</b> <code>{ist_str}</code>\n"
-        f"<b>Trigger Price:</b> <b>{close_str}</b> (HA Close: {ha_close_str})\n"
+        f"<b>Trigger Price:</b> <b>{close_str}</b> (HA Close: {ha_close_str})\n\n"
         f"<b>Current PCR:</b> <b>{current_pcr_str}</b>{delta_str}\n"
         f"<b>3-Period Avg PCR:</b> {avg_3_str}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
