@@ -65,7 +65,7 @@ def send_telegram_message(
     -------
     dict with 'sent' (bool) and response details or error string
     """
-    token = bot_token or TELEGRAM_BOT_TOKEN or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_API", "")
+    token = bot_token or TELEGRAM_BOT_TOKEN or os.getenv("TELEGRAM_BOT_TOKEN")
     chat = chat_id or TELEGRAM_CHAT_ID or os.getenv("TELEGRAM_CHAT_ID", "")
 
     if not token or not chat:

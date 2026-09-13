@@ -82,7 +82,7 @@ CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS",
 # ---------------------------------------------------------------------------
 # Telegram Bot Alerts
 # ---------------------------------------------------------------------------
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_API", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ---------------------------------------------------------------------------

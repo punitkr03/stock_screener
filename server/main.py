@@ -466,7 +466,7 @@ def test_telegram_notification_endpoint(req: TestTelegramNotificationRequest):
         from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
         load_dotenv(PROJECT_ROOT / ".env", override=True)
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_API") or TELEGRAM_BOT_TOKEN
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or TELEGRAM_BOT_TOKEN
         chat_id = os.getenv("TELEGRAM_CHAT_ID") or TELEGRAM_CHAT_ID
 
         if not bot_token or not chat_id:
