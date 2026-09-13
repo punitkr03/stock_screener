@@ -411,6 +411,41 @@ class TestCrudeOilStrategy(unittest.TestCase):
             self.assertEqual(kwargs["data"]["chat_id"], "123456")
             self.assertEqual(kwargs["data"]["text"], "Test message")
 
+    def test_option_contracts_caching(self):
+        """Test option contract discovery caching in fetcher.py."""
+        from unittest.mock import patch, MagicMock
+        from crude_oil.fetcher import get_option_contract_keys, _option_contracts_cache
+
+        # Reset cache
+        _option_contracts_cache["underlying_key"] = None
+        _option_contracts_cache["keys"] = []
+        _option_contracts_cache["cached_at"] = 0.0
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "data": [
+                {"expiry": "2026-09-21", "instrument_key": "MCX_FO|KEY1"},
+                {"expiry": "2026-09-21", "instrument_key": "MCX_FO|KEY2"},
+            ]
+        }
+
+        with patch("requests.get", return_value=mock_resp) as mock_get:
+            # 1st call -> fetches from API and caches
+            keys1 = get_option_contract_keys("MCX_FO|TEST_UNDERLYING")
+            self.assertEqual(keys1, ["MCX_FO|KEY1", "MCX_FO|KEY2"])
+            self.assertEqual(mock_get.call_count, 1)
+
+            # 2nd call -> returned from cache (no extra API call)
+            keys2 = get_option_contract_keys("MCX_FO|TEST_UNDERLYING")
+            self.assertEqual(keys2, ["MCX_FO|KEY1", "MCX_FO|KEY2"])
+            self.assertEqual(mock_get.call_count, 1)
+
+            # 3rd call with force_refresh=True -> refetches from API
+            keys3 = get_option_contract_keys("MCX_FO|TEST_UNDERLYING", force_refresh=True)
+            self.assertEqual(keys3, ["MCX_FO|KEY1", "MCX_FO|KEY2"])
+            self.assertEqual(mock_get.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

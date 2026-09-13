@@ -71,7 +71,7 @@ def update_crude_oil_pcr(
         latest_history = load_pcr_history_from_db(limit=1)
         return latest_history[0] if latest_history else None
 
-    # 2. Minimum Interval / 2-minute Throttling Guard
+    # 2. Minimum Interval Throttling Guard
     if not force and min_interval_seconds > 0:
         latest_history = load_pcr_history_from_db(limit=1)
         if latest_history:
@@ -89,7 +89,9 @@ def update_crude_oil_pcr(
 
                 now_utc = datetime.now(timezone.utc)
                 elapsed = (now_utc - latest_ts).total_seconds()
-                if elapsed < min_interval_seconds:
+                # Use a 5s safety margin to avoid microsecond race conditions
+                threshold = max(0, min_interval_seconds - 5)
+                if elapsed < threshold:
                     log.debug(
                         "Skipping PCR update: last recorded %.1fs ago (< %ss minimum interval). Returning cached record.",
                         elapsed,

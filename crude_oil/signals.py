@@ -57,7 +57,7 @@ def calculate_pcr_signal(
     sell_confirmed: bool,
     current_pcr: Optional[float],
     pcr_history: list[float],
-    threshold_pct: float = 0.0,
+    threshold_pct: float = 2.0,
 ) -> tuple[str, Optional[float], Optional[float]]:
     """
     Classify the current market state into one of the 4 PCR signals.
@@ -71,9 +71,9 @@ def calculate_pcr_signal(
     pcr_history     : List of previously stored PCR values, newest first,
                       *excluding* the current reading. Only the first 3
                       elements are used for the average.
-    threshold_pct   : Minimum absolute percentage delta vs the 3-value average
+    threshold_pct   : Minimum percentage delta vs the 3-value average
                       required to classify as "Strong" instead of "Risky".
-                      Default: 0.0 (i.e. strictly > avg_3 for Buy, < avg_3 for Sell).
+                      Default: 2.0% (i.e. >= +2% for Strong Buy, <= -2% for Strong Sell).
 
     Returns
     -------

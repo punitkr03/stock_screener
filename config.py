@@ -74,10 +74,10 @@ UPSTOX_AUTH_TOKEN = os.getenv("UPSTOX_AUTH_TOKEN", "")
 CRUDE_OIL_SYMBOL              = "CRUDEOILM"
 CRUDE_OIL_CANDLE_INTERVAL     = "5"     # 5-minute candles
 CRUDE_OIL_INIT_DAYS           = 30    # fallback max days
-CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55"))    # TradingView UT Bot ATR period: 10
-CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # TradingView UT Bot Key Value: 1.0
+CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55"))    # UT Bot ATR period: 55
 CRUDE_OIL_UT_BOT_ATR_ON_HA    = os.getenv("CRUDE_OIL_UT_BOT_ATR_ON_HA", "false").lower() == "true"  # False = QuantNomad standard (raw OHLC ATR)
-CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "120"))  # Strict 2-minute interval
+CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # UT Bot Key Value: 1.0
+CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "180"))  # 3-minute interval
 
 # ---------------------------------------------------------------------------
 # Telegram Bot Alerts
@@ -94,8 +94,8 @@ FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 FIREBASE_APP_NAME              = os.getenv("FIREBASE_APP_NAME", "crude-oil-alerts")
 
 # PCR delta threshold (%) above/below the last-3 average to classify a signal as "Strong" vs "Risky"
-# e.g. 0.0 means current_pcr > avg_3 → STRONG_BUY; current_pcr < avg_3 → STRONG_SELL
-PCR_STRONG_SIGNAL_THRESHOLD    = float(os.getenv("PCR_STRONG_SIGNAL_THRESHOLD", "0.0"))
+# e.g. 2.0 means current_pcr >= avg_3 * 1.02 (+2%) → STRONG_BUY; current_pcr <= avg_3 * 0.98 (-2%) → STRONG_SELL
+PCR_STRONG_SIGNAL_THRESHOLD    = float(os.getenv("PCR_STRONG_SIGNAL_THRESHOLD", "2.0"))
 
 
 # ---------------------------------------------------------------------------

@@ -141,10 +141,14 @@ def build_unconfirmed_signal_message(
     )
 
     msg = (
-        f"🚨{emoji} <b>{action} SIGNAL (Waiting Confirmation)</b> - CRUDE OIL 🛢️\n\n"
+        f"🚨{emoji} <b>{action} SIGNAL (Waiting Confirmation)</b> — CRUDE OIL 🛢️\n\n"
         f"<b>Signal:</b> {emoji} <b>{action}</b> (UT Bot Trigger)\n"
-        f"<b>Candle Time:</b> <code>{ist_str}</code>\n\n"
+        f"<b>Candle Time:</b> <code>{ist_str}</code>\n"
+        f"<b>Close Price:</b> <b>{close_str}</b>\n"
+        f"<b>HA Close:</b> <b>{ha_close_str}</b>\n"
+        f"<b>Trailing Stop:</b> <b>{ts_str}</b>\n\n"
         f"⏳ <i>Waiting for breakout confirmation...</i>\n"
+        f"📌 <b>Confirmation Rule:</b> {conf_rule}"
     )
     return msg
 
