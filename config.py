@@ -75,7 +75,7 @@ CRUDE_OIL_SYMBOL              = "CRUDEOILM"
 CRUDE_OIL_CANDLE_INTERVAL     = "5"     # 5-minute candles
 CRUDE_OIL_INIT_DAYS           = 30    # fallback max days
 CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55"))    # UT Bot ATR period: 55
-CRUDE_OIL_UT_BOT_ATR_ON_HA    = os.getenv("CRUDE_OIL_UT_BOT_ATR_ON_HA", "false").lower() == "true"  # False = QuantNomad standard (raw OHLC ATR)
+CRUDE_OIL_UT_BOT_ATR_ON_HA    = True
 CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # UT Bot Key Value: 1.0
 CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "180"))  # 3-minute interval
 
