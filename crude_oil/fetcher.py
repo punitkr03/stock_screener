@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
@@ -306,151 +307,294 @@ def fetch_current_month_5m_candles(
 
 # In-memory cache for option contract keys of the active expiry
 _option_contracts_cache: dict[str, Any] = {
+    "symbol": None,
     "underlying_key": None,
     "keys": [],
-    "expiry": None,
+    "expiry_ms": 0,
+    "expiry_date": None,
     "cached_at": 0.0,
 }
 OPTION_CONTRACTS_CACHE_TTL = 900  # 15 minutes in seconds
 
 
-def get_option_contract_keys(underlying_key: str, force_refresh: bool = False) -> list[str]:
+def get_active_option_chain(symbol: str = CRUDE_OIL_SYMBOL, force_refresh: bool = False) -> Optional[Dict[str, Any]]:
     """
-    Fetch and return all option strike instrument keys for the nearest active expiry.
-    Caches results in memory for OPTION_CONTRACTS_CACHE_TTL (15 minutes).
+    Discover the active nearest unexpired option chain for `symbol` from Upstox MCX master.
+    Filters unexpired options (expiry >= now_ms), sorts by expiry timestamp ascending,
+    and returns the earliest active option chain.
+
+    Returns dict:
+        {
+            "symbol": str,
+            "expiry_ms": int,
+            "expiry_date": str (YYYY-MM-DD),
+            "underlying_key": str,
+            "keys": list[str],
+            "count": int,
+            "cached_at": float,
+        }
+    Caches result in memory for OPTION_CONTRACTS_CACHE_TTL (15 min) or until expiry passes.
     """
     global _option_contracts_cache
     now_epoch = time.time()
+    now_ms = now_epoch * 1000
 
     if (
         not force_refresh
+        and _option_contracts_cache.get("symbol") == symbol
+        and _option_contracts_cache.get("keys")
+        and (now_epoch - _option_contracts_cache.get("cached_at", 0.0) < OPTION_CONTRACTS_CACHE_TTL)
+        and (_option_contracts_cache.get("expiry_ms", 0) <= 0 or now_ms < _option_contracts_cache["expiry_ms"])
+    ):
+        return _option_contracts_cache
+
+    try:
+        r = requests.get(MCX_INSTRUMENTS_URL, timeout=30)
+        if r.status_code == 200:
+            data = json.loads(gzip.decompress(r.content))
+            # Match symbol in asset_symbol or underlying_symbol
+            opts = [
+                d
+                for d in data
+                if (d.get("asset_symbol") == symbol or d.get("underlying_symbol") == symbol)
+                and d.get("instrument_type") in ("PE", "CE", "OPT", "OPTFUT", "OPTCOM")
+                and d.get("expiry", 0) >= now_ms
+            ]
+
+            if not opts:
+                fallback_sym = "CRUDEOIL" if symbol == "CRUDEOILM" else "CRUDEOILM"
+                opts = [
+                    d
+                    for d in data
+                    if (d.get("asset_symbol") == fallback_sym or d.get("underlying_symbol") == fallback_sym)
+                    and d.get("instrument_type") in ("PE", "CE", "OPT", "OPTFUT", "OPTCOM")
+                    and d.get("expiry", 0) >= now_ms
+                ]
+
+            if opts:
+                expiries = sorted(list(set(d.get("expiry") for d in opts if d.get("expiry"))))
+                if expiries:
+                    near_expiry_ms = expiries[0]
+                    chain = [d for d in opts if d.get("expiry") == near_expiry_ms]
+                    keys = [d["instrument_key"] for d in chain if d.get("instrument_key")]
+
+                    und_key = None
+                    for d in chain:
+                        if d.get("underlying_key"):
+                            und_key = d["underlying_key"]
+                            break
+                        elif d.get("asset_key"):
+                            und_key = d["asset_key"]
+                            break
+
+                    try:
+                        expiry_date_str = datetime.fromtimestamp(near_expiry_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                    except Exception:
+                        expiry_date_str = str(near_expiry_ms)
+
+                    chain_info = {
+                        "symbol": symbol,
+                        "expiry_ms": near_expiry_ms,
+                        "expiry_date": expiry_date_str,
+                        "underlying_key": und_key,
+                        "keys": keys,
+                        "count": len(keys),
+                        "cached_at": now_epoch,
+                    }
+                    _option_contracts_cache = chain_info
+                    log.info(
+                        "Discovered active option chain for %s: %s strikes, expiry: %s (underlying: %s)",
+                        symbol,
+                        len(keys),
+                        expiry_date_str,
+                        und_key,
+                    )
+                    return chain_info
+    except Exception as exc:
+        log.error("Could not resolve active option chain for %s from MCX master: %s", symbol, exc)
+
+    if _option_contracts_cache.get("keys"):
+        return _option_contracts_cache
+    return None
+
+
+def get_option_contract_keys(underlying_key: str | None = None, force_refresh: bool = False) -> list[str]:
+    """
+    Fetch and return all option strike instrument keys for the nearest active expiry.
+    If underlying_key is provided and returns options from /v2/option/contract, those are used.
+    If underlying_key has expired or returns no options, falls back automatically
+    to discovering the active unexpired option chain from Upstox MCX master.
+    """
+    global _option_contracts_cache
+    now_epoch = time.time()
+    now_ms = now_epoch * 1000
+
+    if (
+        not force_refresh
+        and underlying_key
         and _option_contracts_cache.get("underlying_key") == underlying_key
         and _option_contracts_cache.get("keys")
         and (now_epoch - _option_contracts_cache.get("cached_at", 0.0) < OPTION_CONTRACTS_CACHE_TTL)
+        and (_option_contracts_cache.get("expiry_ms", 0) <= 0 or now_ms < _option_contracts_cache["expiry_ms"])
     ):
         return _option_contracts_cache["keys"]
 
-    headers = get_auth_headers()
-    encoded_und = quote(underlying_key, safe="")
-    url_opt = f"https://api.upstox.com/v2/option/contract?instrument_key={encoded_und}"
+    if underlying_key:
+        headers = get_auth_headers()
+        encoded_und = quote(underlying_key, safe="")
+        url_opt = f"https://api.upstox.com/v2/option/contract?instrument_key={encoded_und}"
 
-    try:
-        r_opt = requests.get(url_opt, headers=headers, timeout=30)
-        if r_opt.status_code != 200:
-            log.warning("Failed to fetch option contracts (%s): %s", r_opt.status_code, r_opt.text[:200])
-            if _option_contracts_cache.get("underlying_key") == underlying_key and _option_contracts_cache.get("keys"):
-                return _option_contracts_cache["keys"]
-            return []
+        try:
+            r_opt = requests.get(url_opt, headers=headers, timeout=30)
+            if r_opt.status_code == 200:
+                opt_data = r_opt.json().get("data", [])
+                if opt_data:
+                    expiries = sorted(list(set(d.get("expiry") for d in opt_data if d.get("expiry"))))
+                    if expiries:
+                        near_expiry = expiries[0]
+                        near_contracts = [d for d in opt_data if d.get("expiry") == near_expiry]
+                        keys = [d["instrument_key"] for d in near_contracts if d.get("instrument_key")]
+                        if keys:
+                            expiry_ms = 0
+                            try:
+                                exp_dt = datetime.fromisoformat(str(near_expiry))
+                                if exp_dt.tzinfo is None:
+                                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                                exp_dt = exp_dt.replace(hour=23, minute=59, second=59)
+                                expiry_ms = int(exp_dt.timestamp() * 1000)
+                            except Exception:
+                                expiry_ms = 0
 
-        opt_data = r_opt.json().get("data", [])
-        if not opt_data:
-            log.warning("No option contracts returned for %s", underlying_key)
-            return []
+                            _option_contracts_cache = {
+                                "symbol": CRUDE_OIL_SYMBOL,
+                                "underlying_key": underlying_key,
+                                "keys": keys,
+                                "expiry_date": str(near_expiry),
+                                "expiry_ms": expiry_ms,
+                                "cached_at": now_epoch,
+                            }
+                            log.info("Cached %s option contract keys for expiry %s for underlying %s", len(keys), near_expiry, underlying_key)
+                            return keys
+                else:
+                    log.warning("No active option contracts for %s via option API. Falling back to active chain discovery...", underlying_key)
+        except Exception as exc:
+            log.warning("Failed to query option contract API for %s: %s. Falling back to active chain discovery...", underlying_key, exc)
 
-        expiries = sorted(list(set(d.get("expiry") for d in opt_data if d.get("expiry"))))
-        if not expiries:
-            return []
-        near_expiry = expiries[0]
+    # Fallback to dynamic active option chain discovery
+    chain_info = get_active_option_chain(symbol=CRUDE_OIL_SYMBOL, force_refresh=force_refresh)
+    if chain_info and chain_info.get("keys"):
+        return chain_info["keys"]
 
-        near_contracts = [d for d in opt_data if d.get("expiry") == near_expiry]
-        keys = [d["instrument_key"] for d in near_contracts if d.get("instrument_key")]
+    if _option_contracts_cache.get("keys"):
+        return _option_contracts_cache["keys"]
+    return []
 
-        _option_contracts_cache = {
-            "underlying_key": underlying_key,
-            "keys": keys,
-            "expiry": near_expiry,
-            "cached_at": now_epoch,
-        }
-        log.info("Cached %s option contract keys for expiry %s (TTL: %ss)", len(keys), near_expiry, OPTION_CONTRACTS_CACHE_TTL)
-        return keys
-    except Exception as exc:
-        log.error("Error fetching option contract keys for %s: %s", underlying_key, exc)
-        if _option_contracts_cache.get("underlying_key") == underlying_key and _option_contracts_cache.get("keys"):
-            return _option_contracts_cache["keys"]
-        return []
+
+def _fetch_quote_chunk(chunk: List[str], headers: dict) -> tuple[float, float, bool]:
+    """Fetch option quotes for a single chunk and return (pe_oi, ce_oi, success)."""
+    encoded_chunk = ",".join([quote(k, safe="") for k in chunk])
+    url_quotes = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_chunk}"
+    total_ce = 0.0
+    total_pe = 0.0
+
+    for attempt in range(2):
+        try:
+            rq = requests.get(url_quotes, headers=headers, timeout=10)
+            if rq.status_code == 200:
+                qmap = rq.json().get("data", {})
+                for _, quote_data in qmap.items():
+                    sym = quote_data.get("symbol", "")
+                    oi = float(quote_data.get("oi", 0) or 0)
+                    if "CE" in sym or sym.endswith("CE"):
+                        total_ce += oi
+                    elif "PE" in sym or sym.endswith("PE"):
+                        total_pe += oi
+                return total_pe, total_ce, True
+            elif rq.status_code == 429:
+                time.sleep(0.5)
+        except Exception:
+            if attempt == 0:
+                time.sleep(0.5)
+
+    return 0.0, 0.0, False
 
 
 def calculate_pcr_details(underlying_key: str | None = None) -> Optional[Dict[str, Any]]:
     """
     Calculate Put-Call Ratio and Open Interest metrics:
         PCR = Sum of Put OI / Sum of Call OI
-    using Upstox Option Contracts & Quotes API.
+    using Upstox Option Contracts & Quotes API in parallel.
+    Automatically resolves the nearest unexpired option chain if the provided
+    underlying_key is expired or has no options.
     Returns dict:
         {
             "timestamp": datetime (UTC),
             "symbol": "CRUDEOILM",
             "instrument_key": underlying_key,
+            "expiry_date": str,
             "pcr": float,
             "pe_oi": float,
             "ce_oi": float,
         }
     """
-    if not underlying_key:
-        active = get_active_crude_mini_contract()
-        underlying_key = active.get("instrument_key", DEFAULT_CRUDE_KEY)
-
     headers = get_auth_headers()
 
     try:
-        keys = get_option_contract_keys(underlying_key)
+        # 1. Resolve active option chain first
+        chain_info = get_active_option_chain()
+        if chain_info and chain_info.get("keys"):
+            keys = chain_info["keys"]
+            resolved_underlying = chain_info.get("underlying_key") or underlying_key or DEFAULT_CRUDE_KEY
+            expiry_date = chain_info.get("expiry_date")
+        else:
+            if not underlying_key:
+                active_fut = get_active_crude_mini_contract()
+                underlying_key = active_fut.get("instrument_key", DEFAULT_CRUDE_KEY)
+            keys = get_option_contract_keys(underlying_key)
+            resolved_underlying = underlying_key
+            expiry_date = None
+
         if not keys:
-            # Force refresh if cache was empty
-            keys = get_option_contract_keys(underlying_key, force_refresh=True)
-            if not keys:
-                log.warning("No option contract keys available for %s", underlying_key)
+            chain_info = get_active_option_chain(force_refresh=True)
+            if chain_info and chain_info.get("keys"):
+                keys = chain_info["keys"]
+                resolved_underlying = chain_info.get("underlying_key") or underlying_key or DEFAULT_CRUDE_KEY
+                expiry_date = chain_info.get("expiry_date")
+            else:
+                log.warning("No option contract keys available for %s", underlying_key or "CRUDEOILM")
                 return None
 
-        # Query quotes in chunks of 50 with transient retry
+        # Query quotes in chunks of 50 in parallel using ThreadPoolExecutor
+        chunks = [keys[i : i + 50] for i in range(0, len(keys), 50)]
         total_ce_oi = 0.0
         total_pe_oi = 0.0
         chunks_succeeded = 0
 
-        for i in range(0, len(keys), 50):
-            chunk = keys[i : i + 50]
-            encoded_chunk = ",".join([quote(k, safe="") for k in chunk])
-            url_quotes = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_chunk}"
-
-            rq = None
-            for attempt in range(2):
+        with ThreadPoolExecutor(max_workers=min(5, len(chunks) or 1)) as executor:
+            futures = [executor.submit(_fetch_quote_chunk, chunk, headers) for chunk in chunks]
+            for future in as_completed(futures):
                 try:
-                    rq = requests.get(url_quotes, headers=headers, timeout=20)
-                    if rq.status_code == 200:
-                        break
-                    elif rq.status_code == 429:
-                        time.sleep(1.0)
-                except Exception as net_err:
-                    if attempt == 0:
-                        time.sleep(1.0)
-
-            if rq and rq.status_code == 200:
-                qmap = rq.json().get("data", {})
-                chunks_succeeded += 1
-                for _, quote_data in qmap.items():
-                    sym = quote_data.get("symbol", "")
-                    oi = float(quote_data.get("oi", 0) or 0)
-                    if "CE" in sym or sym.endswith("CE"):
-                        total_ce_oi += oi
-                    elif "PE" in sym or sym.endswith("PE"):
-                        total_pe_oi += oi
-            else:
-                log.warning(
-                    "Quote request failed for chunk %s (%s)",
-                    i // 50,
-                    rq.status_code if rq else "Timeout",
-                )
+                    pe_oi, ce_oi, ok = future.result()
+                    if ok:
+                        chunks_succeeded += 1
+                        total_pe_oi += pe_oi
+                        total_ce_oi += ce_oi
+                except Exception as fut_err:
+                    log.warning("Quote chunk fetch error: %s", fut_err)
 
         if chunks_succeeded == 0:
-            log.warning("All option quote chunk requests failed for %s", underlying_key)
+            log.warning("All option quote chunk requests failed for %s", resolved_underlying)
             return None
 
         now_utc = datetime.now(timezone.utc)
         if total_ce_oi > 0:
             pcr = round(total_pe_oi / total_ce_oi, 4)
-            log.info("Calculated Crude Oil PCR: %s (PE OI: %s, CE OI: %s)", pcr, total_pe_oi, total_ce_oi)
+            log.info("Calculated Crude Oil PCR: %s (PE OI: %s, CE OI: %s) for %s (Expiry: %s)", pcr, total_pe_oi, total_ce_oi, resolved_underlying, expiry_date)
             return {
                 "timestamp": now_utc,
                 "symbol": CRUDE_OIL_SYMBOL,
-                "instrument_key": underlying_key,
+                "instrument_key": resolved_underlying,
+                "expiry_date": expiry_date,
                 "pcr": pcr,
                 "pe_oi": total_pe_oi,
                 "ce_oi": total_ce_oi,
@@ -460,7 +604,8 @@ def calculate_pcr_details(underlying_key: str | None = None) -> Optional[Dict[st
             return {
                 "timestamp": now_utc,
                 "symbol": CRUDE_OIL_SYMBOL,
-                "instrument_key": underlying_key,
+                "instrument_key": resolved_underlying,
+                "expiry_date": expiry_date,
                 "pcr": pcr,
                 "pe_oi": total_pe_oi,
                 "ce_oi": total_ce_oi,

@@ -78,6 +78,7 @@ CRUDE_OIL_UT_BOT_ATR_PERIOD   = int(os.getenv("CRUDE_OIL_UT_BOT_ATR_PERIOD", "55
 CRUDE_OIL_UT_BOT_ATR_ON_HA    = True
 CRUDE_OIL_UT_BOT_KEY_VALUE    = float(os.getenv("CRUDE_OIL_UT_BOT_KEY_VALUE", "1.0"))  # UT Bot Key Value: 1.0
 CRUDE_OIL_PCR_INTERVAL_SECONDS = int(os.getenv("CRUDE_OIL_PCR_INTERVAL_SECONDS", "180"))  # 3-minute interval
+CRUDE_OIL_CANDLE_BUFFER_SECONDS = int(os.getenv("CRUDE_OIL_CANDLE_BUFFER_SECONDS", "10"))  # 10-second buffer after 5m mark
 
 # ---------------------------------------------------------------------------
 # Telegram Bot Alerts

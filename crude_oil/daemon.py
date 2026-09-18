@@ -34,7 +34,7 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from config import CRUDE_OIL_PCR_INTERVAL_SECONDS
+from config import CRUDE_OIL_PCR_INTERVAL_SECONDS, CRUDE_OIL_CANDLE_BUFFER_SECONDS
 from crude_oil import (
     is_crude_oil_market_open,
     update_crude_oil_data,
@@ -61,7 +61,7 @@ def _signal_handler(sig, frame):
 
 def run_poller(
     pcr_interval_seconds: int = CRUDE_OIL_PCR_INTERVAL_SECONDS,
-    candle_buffer_seconds: int = 5,
+    candle_buffer_seconds: int = CRUDE_OIL_CANDLE_BUFFER_SECONDS,
     tick_interval_seconds: int = 2,
     ignore_market_hours: bool = False,
 ) -> None:
@@ -69,7 +69,7 @@ def run_poller(
     Run persistent Crude Oil polling daemon:
       - Enforces MCX market window (09:00 - 23:30 IST, Mon-Fri).
       - Calculates PCR every `pcr_interval_seconds` (default: 180s = 3min).
-      - Updates 5m candles on 5-minute clock boundaries (XX:00, XX:05, ... + 5s buffer).
+      - Updates 5m candles on 5-minute clock boundaries (XX:00, XX:05, ... + buffer).
       - Evaluates UT Bot signals and PCR classification for Telegram alerts.
     """
     global _running
@@ -88,9 +88,11 @@ def run_poller(
     log.info("Press Ctrl+C to stop.")
     log.info("═" * 72)
 
-    last_pcr_time = 0.0
+    last_pcr_attempt_time = 0.0
+    last_confirmed_pcr_bucket = None
     last_candle_attempt_time = 0.0
     last_confirmed_bucket = None
+    last_reconciliation_bucket = None
     market_closed_logged = False
 
     # Startup sync to ensure candle data is fresh immediately on daemon boot
@@ -140,35 +142,7 @@ def run_poller(
                 market_closed_logged = False
 
             # -----------------------------------------------------------------
-            # 2. PCR Polling & Notification Engine (Every 3 Min)
-            # -----------------------------------------------------------------
-            if now_epoch - last_pcr_time >= pcr_interval_seconds:
-                try:
-                    pcr_record = update_crude_oil_pcr(
-                        force=True,  # Daemon schedule governs updates
-                        ignore_market_hours=ignore_market_hours,
-                    )
-                    if pcr_record:
-                        last_pcr_time = now_epoch
-                        log.info(
-                            "[%s IST] [PCR Saved] PCR: %s | PE OI: %s | CE OI: %s",
-                            now_ist.strftime("%H:%M:%S"),
-                            pcr_record.get("pcr"),
-                            pcr_record.get("pe_oi"),
-                            pcr_record.get("ce_oi"),
-                        )
-                    else:
-                        log.warning(
-                            "[%s IST] PCR update returned None. Retrying in 15s...",
-                            now_ist.strftime("%H:%M:%S"),
-                        )
-                        last_pcr_time = now_epoch - pcr_interval_seconds + 15
-                except Exception as pcr_exc:
-                    log.error("Error during PCR update: %s. Retrying in 15s...", pcr_exc)
-                    last_pcr_time = now_epoch - pcr_interval_seconds + 15
-
-            # -----------------------------------------------------------------
-            # 3. 5-Minute Candle Update (Clock-Aligned XX:00, XX:05 ... + 5s)
+            # 2. 5-Minute Candle Update (Clock-Aligned XX:00, XX:05 ... + buffer)
             # -----------------------------------------------------------------
             current_bucket_ist = now_ist.replace(
                 minute=(now_ist.minute // 5) * 5,
@@ -176,22 +150,37 @@ def run_poller(
                 microsecond=0,
             )
 
-            needs_candle_sync = (
+            # Primary sync (e.g. at +20s of the 5-minute mark)
+            needs_primary_sync = (
                 current_bucket_ist != last_confirmed_bucket
                 and now_ist.second >= candle_buffer_seconds
                 and (now_epoch - last_candle_attempt_time >= 15)
             )
 
-            if needs_candle_sync:
+            # Secondary reconciliation sync (at +50s of the 5-minute mark) to catch late-settling bars
+            needs_reconciliation_sync = (
+                current_bucket_ist == last_confirmed_bucket
+                and current_bucket_ist != last_reconciliation_bucket
+                and now_ist.second >= 50
+                and (now_epoch - last_candle_attempt_time >= 15)
+            )
+
+            if needs_primary_sync or needs_reconciliation_sync:
                 last_candle_attempt_time = now_epoch
+                sync_type = "Reconciliation (50s)" if needs_reconciliation_sync else f"Primary ({candle_buffer_seconds}s)"
                 log.info(
-                    "[%s IST] 5-minute candle boundary (Bucket: %s IST). Syncing live candles...",
+                    "[%s IST] 5-minute candle %s boundary (Bucket: %s IST). Syncing live candles...",
                     now_ist.strftime("%H:%M:%S"),
+                    sync_type,
                     current_bucket_ist.strftime("%H:%M"),
                 )
                 try:
                     status = update_crude_oil_data()
-                    last_confirmed_bucket = current_bucket_ist
+                    if needs_primary_sync:
+                        last_confirmed_bucket = current_bucket_ist
+                    if needs_reconciliation_sync:
+                        last_reconciliation_bucket = current_bucket_ist
+
                     latest = status.get("latest_candle") or {}
                     ts = latest.get("candle_start_time") or latest.get("timestamp", "N/A")
                     close = latest.get("close", "N/A")
@@ -212,6 +201,46 @@ def run_poller(
                     )
                 except Exception as candle_exc:
                     log.error("Error during candle sync: %s", candle_exc)
+
+            # -----------------------------------------------------------------
+            # 3. PCR Polling & Notification Engine (Clock-Aligned 3-Min: XX:00, XX:03, XX:06...)
+            # -----------------------------------------------------------------
+            pcr_interval_min = max(1, pcr_interval_seconds // 60)
+            current_pcr_bucket = now_ist.replace(
+                minute=(now_ist.minute // pcr_interval_min) * pcr_interval_min,
+                second=0,
+                microsecond=0,
+            )
+
+            needs_pcr_poll = (
+                current_pcr_bucket != last_confirmed_pcr_bucket
+                and (now_epoch - last_pcr_attempt_time >= 15)
+            )
+
+            if needs_pcr_poll:
+                last_pcr_attempt_time = now_epoch
+                try:
+                    pcr_record = update_crude_oil_pcr(
+                        force=True,  # Daemon schedule governs updates
+                        ignore_market_hours=ignore_market_hours,
+                    )
+                    if pcr_record:
+                        last_confirmed_pcr_bucket = current_pcr_bucket
+                        log.info(
+                            "[%s IST] [PCR Saved] PCR: %s | PE OI: %s | CE OI: %s (Bucket: %s IST)",
+                            now_ist.strftime("%H:%M:%S"),
+                            pcr_record.get("pcr"),
+                            pcr_record.get("pe_oi"),
+                            pcr_record.get("ce_oi"),
+                            current_pcr_bucket.strftime("%H:%M"),
+                        )
+                    else:
+                        log.warning(
+                            "[%s IST] PCR update returned None. Retrying in 15s...",
+                            now_ist.strftime("%H:%M:%S"),
+                        )
+                except Exception as pcr_exc:
+                    log.error("Error during PCR update: %s. Retrying in 15s...", pcr_exc)
 
         except Exception as exc:
             log.error("Unhandled error during Crude Oil daemon loop: %s", exc, exc_info=True)
@@ -238,8 +267,8 @@ def main():
     parser.add_argument(
         "--buffer",
         type=int,
-        default=5,
-        help="Seconds buffer after 5-minute mark to trigger candle sync (default: 5)",
+        default=CRUDE_OIL_CANDLE_BUFFER_SECONDS,
+        help=f"Seconds buffer after 5-minute mark to trigger candle sync (default: {CRUDE_OIL_CANDLE_BUFFER_SECONDS})",
     )
     parser.add_argument(
         "--retry-interval",

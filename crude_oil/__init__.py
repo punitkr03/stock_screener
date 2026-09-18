@@ -28,6 +28,8 @@ from crude_oil.fetcher import (
     fetch_current_month_5m_candles,
     fetch_intraday_5m_candles,
     get_active_crude_mini_contract,
+    get_active_option_chain,
+    get_option_contract_keys,
     is_crude_oil_market_open,
 )
 from crude_oil.strategy import process_crude_oil_strategy
@@ -99,17 +101,16 @@ def update_crude_oil_pcr(
                     )
                     return latest_record
 
-    contract = get_active_crude_mini_contract()
-    instrument_key = contract.get("instrument_key")
-    pcr_record = calculate_pcr_details(underlying_key=instrument_key)
+    pcr_record = calculate_pcr_details()
 
     if pcr_record:
         save_pcr_record_to_db(pcr_record)
         log.info(
-            "Updated Crude Oil PCR: %s (PE OI: %s, CE OI: %s)",
+            "Updated Crude Oil PCR: %s (PE OI: %s, CE OI: %s) for %s",
             pcr_record.get("pcr"),
             pcr_record.get("pe_oi"),
             pcr_record.get("ce_oi"),
+            pcr_record.get("instrument_key"),
         )
         # Compute 4-state PCR signal and send FCM notification on state change
         try:
@@ -117,7 +118,7 @@ def update_crude_oil_pcr(
         except Exception as notify_exc:
             log.error("Error in PCR signal notification: %s", notify_exc, exc_info=True)
     else:
-        log.warning("Could not calculate PCR for %s", instrument_key)
+        log.warning("Could not calculate PCR for active Crude Oil option chain")
 
     return pcr_record
 
@@ -270,39 +271,70 @@ def get_crude_oil_status(limit: int = 10, pcr_limit: int = 50) -> Dict[str, Any]
 # Private: Telegram & FCM notification dispatch
 # ---------------------------------------------------------------------------
 
-def _check_and_notify_candle_signal(status: Dict[str, Any]) -> None:
+def _check_and_notify_candle_signal(status: Dict[str, Any], lookback: int = 3) -> None:
     """
-    Check if the latest completed 5-minute candle produced a UT Bot BUY or SELL
-    signal. If so, send Stage 1 unconfirmed Telegram alert (waiting for confirmation).
-    Deduplicates against the last recorded unconfirmed signal timestamp in DB.
+    Check the last `lookback` completed 5-minute candles (chronological order) for any
+    un-notified UT Bot BUY or SELL signal. If detected, send Stage 1 unconfirmed Telegram
+    alert (waiting for confirmation).
+
+    Deduplicates against `last_unconfirmed_ts` in DB, ensuring late-settling candles from
+    data providers (like Upstox) are never missed even if finalized 1 cycle late.
     """
     from crude_oil.notifications import send_unconfirmed_signal_notification
 
-    latest = status.get("latest_candle")
-    if not latest:
+    recent_candles = status.get("candles") or []
+    if not recent_candles:
+        latest = status.get("latest_candle")
+        if latest:
+            recent_candles = [latest]
+
+    if not recent_candles:
         return
 
-    sig = latest.get("signal", "NONE")
-    if sig not in ("BUY", "SELL"):
-        return
-
-    candle_ts = latest.get("candle_start_time") or latest.get("timestamp")
-    if not candle_ts:
-        return
+    # Check up to `lookback` most recent candles in chronological order (oldest to newest)
+    candles_to_check = list(reversed(recent_candles[:lookback]))
 
     state = get_signal_state()
-    last_ts = state.get("last_unconfirmed_ts")
+    last_unconfirmed_ts_str = state.get("last_unconfirmed_ts")
 
-    # If this candle was already notified, skip
-    if last_ts and str(last_ts) == str(candle_ts):
-        log.debug("Unconfirmed %s signal for candle %s already notified. Skipping.", sig, candle_ts)
-        return
+    def _parse_ts(ts_val: Any) -> Optional[datetime]:
+        if ts_val is None:
+            return None
+        if isinstance(ts_val, str):
+            dt = datetime.fromisoformat(ts_val)
+        elif hasattr(ts_val, "to_pydatetime"):
+            dt = ts_val.to_pydatetime()
+        elif isinstance(ts_val, datetime):
+            dt = ts_val
+        else:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
 
-    log.info("New unconfirmed %s signal detected on candle %s. Dispatching Telegram alert.", sig, candle_ts)
-    res = send_unconfirmed_signal_notification(signal=sig, candle=latest)
-    log.info("Unconfirmed signal Telegram alert result: %s", res)
+    last_notified_dt = _parse_ts(last_unconfirmed_ts_str)
 
-    save_unconfirmed_signal_state(signal=sig, candle_ts=candle_ts)
+    for candle in candles_to_check:
+        sig = candle.get("signal", "NONE")
+        if sig not in ("BUY", "SELL"):
+            continue
+
+        candle_ts_val = candle.get("candle_start_time") or candle.get("timestamp")
+        candle_dt = _parse_ts(candle_ts_val)
+        if not candle_dt:
+            continue
+
+        # Skip if this candle was already notified (or is older than the last notified candle)
+        if last_notified_dt is not None and candle_dt <= last_notified_dt:
+            log.debug("Unconfirmed %s signal for candle %s already notified (<= %s). Skipping.", sig, candle_dt.isoformat(), last_notified_dt.isoformat())
+            continue
+
+        log.info("New unconfirmed %s signal detected on candle %s. Dispatching Telegram alert.", sig, candle_dt.isoformat())
+        res = send_unconfirmed_signal_notification(signal=sig, candle=candle)
+        log.info("Unconfirmed signal Telegram alert result: %s", res)
+
+        save_unconfirmed_signal_state(signal=sig, candle_ts=candle_dt)
+        last_notified_dt = candle_dt
 
 
 def _check_and_notify_signal(pcr_record: Optional[Dict[str, Any]] = None) -> None:
@@ -387,6 +419,8 @@ __all__ = [
     "get_crude_oil_status",
     "get_latest_candle_timestamp",
     "is_crude_oil_market_open",
+    "get_active_option_chain",
+    "get_option_contract_keys",
     "calculate_pcr",
     "calculate_pcr_details",
     "process_crude_oil_strategy",

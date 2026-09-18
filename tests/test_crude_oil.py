@@ -446,6 +446,107 @@ class TestCrudeOilStrategy(unittest.TestCase):
             self.assertEqual(keys3, ["MCX_FO|KEY1", "MCX_FO|KEY2"])
             self.assertEqual(mock_get.call_count, 2)
 
+    def test_check_and_notify_candle_signal_multi_candle_lookback(self):
+        """Test that _check_and_notify_candle_signal scans the last 3 candles and doesn't skip a delayed BUY signal at index 1."""
+        from unittest.mock import patch
+        from crude_oil import _check_and_notify_candle_signal
+
+        # Simulate candles where index 0 is NONE, index 1 is BUY
+        mock_status = {
+            "candles": [
+                {
+                    "candle_start_time": "2026-09-14T14:00:00+00:00",
+                    "signal": "NONE",
+                    "close": 10003,
+                    "ha_close": 9995,
+                    "trailing_stop": 9952,
+                },
+                {
+                    "candle_start_time": "2026-09-14T13:55:00+00:00",
+                    "signal": "BUY",
+                    "close": 10000,
+                    "ha_close": 9986.75,
+                    "trailing_stop": 9941.33,
+                },
+                {
+                    "candle_start_time": "2026-09-14T13:50:00+00:00",
+                    "signal": "NONE",
+                    "close": 9976,
+                    "ha_close": 9961.25,
+                    "trailing_stop": 9983.08,
+                },
+            ]
+        }
+
+        with patch("crude_oil.get_signal_state", return_value={"last_unconfirmed_ts": "2026-09-14T13:15:00+00:00"}), \
+             patch("crude_oil.notifications.send_unconfirmed_signal_notification", return_value={"sent": True}) as mock_send, \
+             patch("crude_oil.save_unconfirmed_signal_state") as mock_save:
+
+            _check_and_notify_candle_signal(mock_status, lookback=3)
+
+            # Verified: The BUY signal on 13:55 (at index 1) is detected and notified!
+            mock_send.assert_called_once()
+            call_kwargs = mock_send.call_args.kwargs
+            self.assertEqual(call_kwargs["signal"], "BUY")
+            self.assertEqual(call_kwargs["candle"]["candle_start_time"], "2026-09-14T13:55:00+00:00")
+            mock_save.assert_called_once()
+
+    def test_automatic_option_expiry_rollover(self):
+        """Test that get_active_option_chain and get_option_contract_keys automatically roll over after option expiry."""
+        import gzip
+        import json
+        import time
+        from unittest.mock import patch, MagicMock
+        from crude_oil.fetcher import get_active_option_chain, get_option_contract_keys, calculate_pcr_details, _option_contracts_cache
+
+        now_ms = time.time() * 1000
+        expired_ms = now_ms - 86400000  # 1 day ago
+        active_oct_ms = now_ms + 86400000 * 20  # 20 days in future
+        active_nov_ms = now_ms + 86400000 * 50  # 50 days in future
+
+        mock_mcx_data = [
+            # Expired Sep options
+            {"asset_symbol": "CRUDEOILM", "instrument_type": "CE", "expiry": expired_ms, "instrument_key": "MCX_FO|SEP_CE", "underlying_key": "MCX_FO|SEP_FUT"},
+            {"asset_symbol": "CRUDEOILM", "instrument_type": "PE", "expiry": expired_ms, "instrument_key": "MCX_FO|SEP_PE", "underlying_key": "MCX_FO|SEP_FUT"},
+            # Active Oct options
+            {"asset_symbol": "CRUDEOILM", "instrument_type": "CE", "expiry": active_oct_ms, "instrument_key": "MCX_FO|OCT_CE", "underlying_key": "MCX_FO|OCT_FUT"},
+            {"asset_symbol": "CRUDEOILM", "instrument_type": "PE", "expiry": active_oct_ms, "instrument_key": "MCX_FO|OCT_PE", "underlying_key": "MCX_FO|OCT_FUT"},
+            # Active Nov options
+            {"asset_symbol": "CRUDEOILM", "instrument_type": "CE", "expiry": active_nov_ms, "instrument_key": "MCX_FO|NOV_CE", "underlying_key": "MCX_FO|NOV_FUT"},
+        ]
+
+        compressed_data = gzip.compress(json.dumps(mock_mcx_data).encode("utf-8"))
+        mock_master_resp = MagicMock()
+        mock_master_resp.status_code = 200
+        mock_master_resp.content = compressed_data
+
+        # Reset cache
+        _option_contracts_cache["symbol"] = None
+        _option_contracts_cache["keys"] = []
+        _option_contracts_cache["cached_at"] = 0.0
+
+        with patch("requests.get", return_value=mock_master_resp):
+            chain = get_active_option_chain(force_refresh=True)
+            self.assertIsNotNone(chain)
+            self.assertEqual(chain["underlying_key"], "MCX_FO|OCT_FUT")
+            self.assertEqual(chain["expiry_ms"], active_oct_ms)
+            self.assertEqual(set(chain["keys"]), {"MCX_FO|OCT_CE", "MCX_FO|OCT_PE"})
+
+        # Test fallback in get_option_contract_keys when underlying has 0 options (expired)
+        mock_empty_opt_resp = MagicMock()
+        mock_empty_opt_resp.status_code = 200
+        mock_empty_opt_resp.json.return_value = {"data": []}
+
+        def mock_requests_get(url, *args, **kwargs):
+            if "MCX.json.gz" in url:
+                return mock_master_resp
+            return mock_empty_opt_resp
+
+        with patch("requests.get", side_effect=mock_requests_get):
+            # Pass expired Sep futures key -> should automatically rollover to Oct options
+            keys = get_option_contract_keys("MCX_FO|SEP_FUT", force_refresh=True)
+            self.assertEqual(set(keys), {"MCX_FO|OCT_CE", "MCX_FO|OCT_PE"})
+
 
 if __name__ == "__main__":
     unittest.main()
